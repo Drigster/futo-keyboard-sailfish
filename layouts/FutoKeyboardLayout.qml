@@ -689,6 +689,16 @@ Column {
                 else
                     child.relayout(maxButton)
             }
+            // Sailfish's KeyboardRow.relayout() resets every key to the
+            // layout's full keyHeight. Fit number keys to their shorter row
+            // only after that stock relayout finishes.
+            if (child.fitKeysToRowHeight === true) {
+                for (var keyIndex = 0; keyIndex < child.children.length; ++keyIndex) {
+                    var rowKey = child.children[keyIndex]
+                    if (rowKey.height !== undefined)
+                        rowKey.height = child.height
+                }
+            }
         }
     }
 }

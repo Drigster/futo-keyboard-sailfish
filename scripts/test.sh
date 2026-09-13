@@ -57,7 +57,8 @@ if grep -q 'systemctl-user stop futo-keyboard-helper.service' "$ROOT/packaging/r
 fi
 # One navigation only: replacing the stack from an accepted handler runs a
 # second one against the dialog's own and leaves both pages on screen.
-grep -Fq 'acceptDestinationAction: PageStackAction.Replace' \n    "$ROOT/qml/FutoUninstallDialog.qml"
+grep -Fq 'acceptDestinationAction: PageStackAction.Replace' \
+    "$ROOT/qml/FutoUninstallDialog.qml"
 grep -Fq 'FutoUninstallProgressPage.qml' "$ROOT/packaging/Makefile"
 grep -Fq 'icon-m-refresh' "$ROOT/qml/FutoMaintenancePage.qml"
 grep -Fq '49-futo-keyboard-uninstall.rules' "$ROOT/packaging/Makefile"
@@ -547,7 +548,32 @@ grep -Fq 'property bool mergeSameLayoutLanguages: true' \
     "$ROOT/layouts/FutoQwertyLayout.qml"
 grep -Fq 'Combine languages that use the same layout' \
     "$ROOT/qml/FutoLanguagesPage.qml"
-grep -Fq 'readonly property real numberRowHeightScale: 1.0' \
+grep -Fq 'readonly property real numberRowHeightScale: Math.max(0.5, Math.min(1.0,' \
+    "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'visible: settings.numberRowEnabled' \
+    "$ROOT/qml/FutoAppearancePage.qml"
+grep -Fq 'property bool fitKeysToRowHeight: true' \
+    "$ROOT/layouts/FutoGeneratedNumberRow.qml"
+grep -Fq 'rowKey.height = child.height' \
+    "$ROOT/layouts/FutoKeyboardLayout.qml"
+grep -Fq 'id: configuredLayoutNameTicker' \
+    "$ROOT/qml/FutoInputHandler.qml"
+# The across-the-top 123 page is shared by every FUTO letter layout. Its
+# Western digit row replaces generated/localized number rows in symbol mode,
+# and both symbol pages replace the letters instead of leaving them visible.
+grep -Fq 'readonly property bool topRowSymbolPage: symbolNumberLayout === 0' \
+    "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'readonly property bool topRowSecondSymbolPage: symbolNumberLayout === 0' \
+    "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'visible: root.topRowSymbolPage' "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'visible: (root.numpadMode || root.topRowSecondSymbolPage)' \
+    "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq '&& (root.topRowSymbolPage' "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq '&& !attributes.inSymView && !root.numpadMode' \
+    "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq '&& targetLayout.topRowSymbolPage)' "$ROOT/layouts/FutoLetterRow.qml"
+grep -Fq '&& targetLayout.topRowSecondSymbolPage)' "$ROOT/layouts/FutoLetterRow.qml"
+grep -Fq 'symView: "1"; symView2: "¹"' \
     "$ROOT/layouts/FutoQwertyLayout.qml"
 ! grep -Fq 'sendCommit(word + " ")' "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'property bool swipeTypingEnabled: false' \
@@ -559,6 +585,25 @@ grep -Fq 'function refreshSwipeContentStatus()' \
 grep -Fq 'swipeStartsWord = swipeMayStartWord()' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'function swipeMayStartWord()' "$ROOT/qml/FutoInputHandler.qml"
+# After a restart Space names the language it was left on, not English.
+grep -Fq 'onHandlerChanged: synchronizeDetectedLanguage()' \
+    "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'property string lastDetectedLanguage: ""' "$ROOT/qml/FutoInputHandler.qml"
+# The Incognito tile shows the switch it flips, not automatic privacy.
+grep -Fq '(actionId === "incognito" && keyboardSettings.incognitoMode)' \
+    "$ROOT/qml/FutoInputHandler.qml"
+if grep -Fq 'color: futoHandler.incognitoMode' "$ROOT/qml/FutoInputHandler.qml"; then
+    echo "Incognito tile still follows automatic privacy" >&2
+    exit 1
+fi
+# A field that only turns suggestions off is not private.
+if grep -Fq '|| (!MInputMethodQuick.predictionEnabled && !urlField)' \
+        "$ROOT/qml/FutoInputHandler.qml" \
+    || grep -Fq '|| !MInputMethodQuick.predictionEnabled' \
+        "$ROOT/layouts/FutoQwertyLayout.qml"; then
+    echo "Fields without suggestions still count as Incognito" >&2
+    exit 1
+fi
 # A swiped word holds its space until the next key; refusing a gesture then
 # would reject the very one that inserts it.
 grep -Fq 'if (swipeAutoSpacePending || swipeReplacementActive)' "$ROOT/qml/FutoInputHandler.qml"
@@ -591,6 +636,22 @@ grep -Fq 'separatedKeyCardEligible: false' "$ROOT/layouts/FutoPeriodKey.qml"
 grep -Fq '&& futoKey.separatedKeyCardEligible' \
     "$ROOT/layouts/FutoCharacterKey.qml"
 grep -Fq 'function visiblePrimaryCorrection()' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'function correctedWordForCommit(original)' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'property bool punctuationCorrectionEnabled: false' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'property bool punctuationCorrectionEnabled: false' \
+    "$ROOT/qml/FutoTypingPage.qml"
+grep -Fq 'settings.punctuationCorrectionEnabled = false' \
+    "$ROOT/qml/FutoSettingsPage.qml"
+grep -Fq 'text: qsTr("Correct typos when pressing punctuation")' \
+    "$ROOT/qml/FutoTypingPage.qml"
+grep -Fq '&& !punctuationInsideAddress(punctuationText)' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'acceptedPunctuationWord = correctedWordForCommit(preedit)' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq '&& ",.?!:;،؟؛".indexOf(punctuationText) >= 0' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq '"primary": primary !== ""' \
     "$ROOT/qml/FutoInputHandler.qml"
@@ -731,10 +792,13 @@ phrase_output=$(printf '%s\n' \
     $'ANALYZE\tEN\t8\thowareyou' \
     $'ANALYZE\tEN\t8\tim' \
     $'ANALYZE\tEN\t8\timok' \
-    | "$ENGINE" --dictionary "EN=$ROOT/build/dictionaries/en_US.fksidx" 2>/dev/null)
+    $'ANALYZE\tEN_IN\t8\tive' \
+    | "$ENGINE" --dictionary "EN=$ROOT/build/dictionaries/en_US.fksidx" \
+        --dictionary "EN_IN=$ROOT/build/dictionaries/en_GB.fksidx" 2>/dev/null)
 grep -Fq '"phrases":["how are you"]' <<<"$phrase_output"
 grep -Fq "\"phrases\":[\"I'm\"]" <<<"$phrase_output"
 grep -Fq "\"phrases\":[\"I'm ok\"]" <<<"$phrase_output"
+grep -Fq "\"phrases\":[\"I've\"]" <<<"$phrase_output"
 
 swipe_geometry='113:0.05:0.10;119:0.15:0.10;101:0.25:0.10;114:0.35:0.10;116:0.45:0.10;121:0.55:0.10;117:0.65:0.10;105:0.75:0.10;111:0.85:0.10;112:0.95:0.10;97:0.05:0.50;115:0.15:0.50;100:0.25:0.50;102:0.35:0.50;103:0.45:0.50;104:0.55:0.50;106:0.65:0.50;107:0.75:0.50;108:0.85:0.50;122:0.15:0.90;120:0.25:0.90;99:0.35:0.90;118:0.45:0.90;98:0.55:0.90;110:0.65:0.90;109:0.75:0.90'
 swipe_output=$(printf 'SWIPE\tEN\t5\t0\t%s\t%s\nSWIPE\tEN\t5\t0\t%s\t%s\nSWIPE\tEN\t5\t0\t%s\t%s\n' \

@@ -88,7 +88,7 @@ Item {
         anchors.top: header.bottom
         anchors.left: parent.left
         anchors.right: parent.right
-        height: editor.height - header.height - languageTabs.height
+        anchors.bottom: layoutScrubber.top
         orientation: ListView.Horizontal
         spacing: Theme.paddingMedium
         clip: true
@@ -100,6 +100,8 @@ Item {
         preferredHighlightEnd: width * 0.89
 
         onMovementEnded: {
+            if (layoutScrubber.dragging)
+                return
             if (currentIndex >= 0 && currentIndex < editor.layoutChoices.length) {
                 editor.feedback()
                 targetLayout.assignLayoutToLanguage(editor.selectedLanguage,
@@ -186,7 +188,8 @@ Item {
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: Theme.paddingSmall
                 anchors.horizontalCenter: parent.horizontalCenter
-                text: targetLayout.letterLayoutName(previewCard.layoutIndex)
+                text: targetLayout.letterLayoutName(previewCard.layoutIndex,
+                                                    editor.selectedLanguage)
                 color: targetLayout.layoutForLanguage(editor.selectedLanguage)
                        === previewCard.layoutIndex
                        ? Theme.highlightColor : Theme.primaryColor
@@ -204,6 +207,88 @@ Item {
                 visible: targetLayout.layoutForLanguage(editor.selectedLanguage)
                          === previewCard.layoutIndex
                 font.pixelSize: Theme.fontSizeMedium
+            }
+        }
+    }
+
+    // The carousel deliberately snaps to one preview at a time. This track
+    // also lets someone jump directly across a long list of Latin layouts.
+    Item {
+        id: layoutScrubber
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: languageTabs.top
+        visible: editor.layoutChoices.length > 1
+        height: visible ? Math.max(Theme.paddingLarge * 2,
+                                   Theme.itemSizeSmall * 0.45) : 0
+        property bool dragging: false
+        property int pendingIndex: 0
+        readonly property int thumbIndex: Math.max(0, Math.min(
+                editor.layoutChoices.length - 1,
+                dragging ? pendingIndex : previewList.currentIndex))
+
+        function indexAt(position) {
+            var travel = Math.max(1, scrollTrack.width - scrollThumb.width)
+            var offset = Math.max(0, Math.min(travel,
+                            position - scrollTrack.x - scrollThumb.width / 2))
+            return Math.round((editor.layoutChoices.length - 1) * offset / travel)
+        }
+
+        function showAt(position) {
+            var wanted = indexAt(position)
+            pendingIndex = wanted
+            if (previewList.currentIndex !== wanted)
+                previewList.currentIndex = wanted
+            previewList.positionViewAtIndex(wanted, ListView.Center)
+        }
+
+        Rectangle {
+            id: scrollTrack
+            x: Theme.horizontalPageMargin
+            width: Math.max(0, parent.width - 2 * x)
+            anchors.verticalCenter: parent.verticalCenter
+            height: Math.max(3, Theme.paddingSmall / 2)
+            radius: height / 2
+            color: Theme.rgba(Theme.primaryColor, 0.3)
+
+            Rectangle {
+                id: scrollThumb
+                width: Math.min(parent.width, Math.max(Theme.itemSizeSmall * 0.55,
+                           parent.width / Math.max(1, editor.layoutChoices.length)))
+                height: Math.max(Theme.paddingMedium, parent.height * 2)
+                anchors.verticalCenter: parent.verticalCenter
+                x: (parent.width - width) * layoutScrubber.thumbIndex
+                   / Math.max(1, editor.layoutChoices.length - 1)
+                radius: height / 2
+                color: Theme.highlightColor
+            }
+        }
+
+        MouseArea {
+            id: scrubTouch
+            anchors.fill: parent
+            onPressed: {
+                layoutScrubber.dragging = true
+                layoutScrubber.showAt(mouse.x)
+            }
+            onPositionChanged: {
+                if (scrubTouch.pressed)
+                    layoutScrubber.showAt(mouse.x)
+            }
+            onReleased: {
+                layoutScrubber.showAt(mouse.x)
+                layoutScrubber.dragging = false
+                if (previewList.currentIndex >= 0
+                        && previewList.currentIndex < editor.layoutChoices.length) {
+                    editor.feedback()
+                    targetLayout.assignLayoutToLanguage(
+                                editor.selectedLanguage,
+                                editor.layoutChoices[previewList.currentIndex])
+                }
+            }
+            onCanceled: {
+                layoutScrubber.dragging = false
+                editor.syncSelection()
             }
         }
     }

@@ -3,6 +3,7 @@ import QtQuick 2.0
 import Sailfish.Silica 1.0
 import Nemo.Configuration 1.0
 import ".."
+import "FutoLetterLayouts.js" as LetterLayouts
 
 CharacterKey {
     id: futoKey
@@ -66,7 +67,10 @@ CharacterKey {
             return []
         var source = attributes.isShifted
                 ? letterAlternativeChoicesShifted : letterAlternativeChoices
-        return source && source.length !== undefined ? source : []
+        return LetterLayouts.structuredChoicesWithSecondary(
+                    secondarySymbol,
+                    source && source.length !== undefined ? source : [],
+                    visualSettings.secondarySymbolsEnabled)
     }
 
     function placeholderAccents(count) {
@@ -206,7 +210,7 @@ CharacterKey {
         if (structured.length > 0)
             return placeholderAccents(structured.length)
         if (exactAlternativeMode && !attributes.inSymView)
-            return ""
+            return visualSettings.secondarySymbolsEnabled ? secondarySymbol : ""
         return accentChoices(attributes.isShifted
                              ? letterAccentsShifted : letterAccents,
                              secondarySymbol)
@@ -263,7 +267,8 @@ CharacterKey {
 
     function replacePopperChoices(popper) {
         var choices = activeStructuredChoices()
-        if (!popper || choices.length < 1)
+        if (!popper || choices.length < 1
+                || symbolPopupChoices(baseKeyText()) !== "")
             return
         var model = findPopperModel(popper)
         if (!model)
@@ -276,7 +281,12 @@ CharacterKey {
         var sourceIndex = 0
         for (var cell = 0; cell < choices.length + 1; ++cell) {
             if (cell === activeCell) {
-                rows.push({ labelText: baseKeyText(), inputText: baseKeyOutput() })
+                rows.push({
+                    labelText: popupHighlightedText !== ""
+                               ? popupHighlightedText : baseKeyText(),
+                    inputText: popupHighlightedOutput !== ""
+                               ? popupHighlightedOutput : baseKeyOutput()
+                })
             } else {
                 var choice = choices[sourceIndex++] || {}
                 rows.push({

@@ -18,10 +18,10 @@ KeyboardRow {
              && !targetLayout.extraKeysMode && !targetLayout.layoutEditorMode
              && !targetLayout.clipboardMode && !targetLayout.credentialMode
              && !targetLayout.numpadMode
-             && !(targetLayout.qwertySymbolPage !== undefined
-                  && targetLayout.qwertySymbolPage)
-             && !(targetLayout.qwertySecondSymbolPage !== undefined
-                  && targetLayout.qwertySecondSymbolPage)
+             && !(targetLayout.topRowSymbolPage !== undefined
+                  && targetLayout.topRowSymbolPage)
+             && !(targetLayout.topRowSecondSymbolPage !== undefined
+                  && targetLayout.topRowSecondSymbolPage)
     separateButtonSizes: LetterLayouts.usesIndependentSizing(layoutIndex)
     splitIndex: Math.ceil(keyCount / 2)
 

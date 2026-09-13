@@ -202,6 +202,19 @@ var secondarySymbols = [
     ["_", "€", "\"", "'", ":", ";", "/", "\\", "|", "<", ">", "~"]
 ]
 
+// Imported layouts can have one or two extra rows of national letters above
+// their three main typing rows. Place the shared shortcuts on those main rows
+// rather than shifting them down whenever an extra row is present. When the
+// number row is visible, use non-digit shortcuts on its corresponding row.
+var generatedTopRowWithNumbers = [
+    "%", "^", "~", "|", "[", "]", "<", ">", "{", "}", "«", "»"
+]
+var generatedSecondaryFallbacks = [
+    "!", "?", "%", "^", "~", "$", "£", "¥", "₺", "¢", "§", "°",
+    "©", "®", "«", "»", "¿", "¡", "…", "•", "÷", "×", "±", "≈", "≠"
+]
+var generatedSecondaryCache = {}
+
 // QWERTY carries one fixed set of alternates per key rather than a collection
 // merged from whichever languages are enabled, and the secondary symbol the key
 // prints sits at a set place inside that set, which is where it is highlighted.
@@ -267,12 +280,17 @@ var menuNames = [
 // language directly, so name them the way the person picking them thinks of
 // them.  Every other generated layout keeps its upstream title.
 var generatedDisplayNames = {
+    "qwerty": "QWERTY (regional)",
     "nordic": "Nordic (Danish)",
     "nordic__nb": "Nordic (Norwegian)",
+    // FUTO shares this ç-ending QWERTY layout between Catalan and Portuguese.
+    // Keep the Portuguese label as the generic name; Catalan gets its own
+    // language-aware label below.
     "spanish": "Portuguese QWERTY"
 }
 
 var generatedMenuNames = {
+    "qwerty": "QWERTY-REG",
     "nordic": "DA",
     "nordic__nb": "NO",
     "spanish": "PT-QWERTY"
@@ -358,6 +376,22 @@ function name(value) {
 
 function menuName(value) {
     return menuNames[clampedIndex(value)]
+}
+
+function nameForLanguage(value, languageCode) {
+    var index = clampedIndex(value)
+    if (String(languageCode).toUpperCase() === "CA"
+            && layouts[index].id === "spanish")
+        return "Catalan QWERTY"
+    return name(index)
+}
+
+function menuNameForLanguage(value, languageCode) {
+    var index = clampedIndex(value)
+    if (String(languageCode).toUpperCase() === "CA"
+            && layouts[index].id === "spanish")
+        return "CA-QWERTY"
+    return menuName(index)
 }
 
 function script(value) {
@@ -648,6 +682,23 @@ function stringChoices(value) {
     return result
 }
 
+// FUTO's layout-specific alternatives are independent of the keyboard-wide
+// number/symbol shortcuts. The Popper inserts the highlighted key itself;
+// never add the original letter as another cell or duplicate that shortcut.
+function structuredChoicesWithSecondary(secondary, choices, secondaryEnabled) {
+    if (!secondaryEnabled || secondary === "")
+        return choices || []
+    var result = []
+    var source = choices || []
+    for (var i = 0; i < source.length; ++i) {
+        var choiceOutput = String(source[i].output !== undefined
+                                  ? source[i].output : source[i].caption || "")
+        if (choiceOutput !== secondary)
+            appendChoice(result, source[i], "")
+    }
+    return result
+}
+
 function alternativeChoices(layoutValue, row, column, languageCodes, shiftedValue,
                             numberRowVisible) {
     var layoutIndex = clampedIndex(layoutValue)
@@ -707,10 +758,88 @@ function letterIndexAt(layoutIndex, row, column) {
     return index
 }
 
+function generatedSecondaryMap(layoutIndex, numberRowVisible) {
+    var cacheKey = String(layoutIndex) + (numberRowVisible ? ":number" : ":letter")
+    if (generatedSecondaryCache[cacheKey] !== undefined)
+        return generatedSecondaryCache[cacheKey]
+
+    var rows = layouts[layoutIndex].rows
+    var firstMainRow = Math.max(0, rows.length - secondarySymbols.length)
+    var primaryOutputs = {}
+    var preferredSymbols = {}
+    var hints = {}
+    var usedHints = {}
+    var row, column, item, outputValue, preferred, position
+
+    // Do not hide a symbol behind a letter when it is already a direct key on
+    // this layout. This also prevents duplicate visible shortcuts.
+    for (row = 0; row < rows.length; ++row) {
+        for (column = 0; column < rows[row].length; ++column) {
+            item = key(layoutIndex, row, column)
+            if (item.kind !== "character")
+                continue
+            outputValue = output(layoutIndex, row, column, false)
+            if (outputValue.length === 1)
+                primaryOutputs[outputValue] = true
+        }
+    }
+
+    for (row = firstMainRow; row < rows.length; ++row) {
+        position = 0
+        for (column = 0; column < rows[row].length; ++column) {
+            item = key(layoutIndex, row, column)
+            if (item.kind !== "character")
+                continue
+            preferred = row === firstMainRow && numberRowVisible
+                    ? generatedTopRowWithNumbers[position]
+                    : secondarySymbols[row - firstMainRow][position]
+            if (preferred !== undefined)
+                preferredSymbols[preferred] = true
+            position++
+        }
+    }
+
+    for (row = firstMainRow; row < rows.length; ++row) {
+        position = 0
+        for (column = 0; column < rows[row].length; ++column) {
+            item = key(layoutIndex, row, column)
+            if (item.kind !== "character")
+                continue
+            preferred = row === firstMainRow && numberRowVisible
+                    ? generatedTopRowWithNumbers[position]
+                    : secondarySymbols[row - firstMainRow][position]
+            position++
+            if (preferred === undefined)
+                continue
+            if (primaryOutputs[preferred] || usedHints[preferred]) {
+                preferred = ""
+                for (var fallbackIndex = 0;
+                        fallbackIndex < generatedSecondaryFallbacks.length;
+                        ++fallbackIndex) {
+                    var fallback = generatedSecondaryFallbacks[fallbackIndex]
+                    if (!primaryOutputs[fallback] && !usedHints[fallback]
+                            && !preferredSymbols[fallback]) {
+                        preferred = fallback
+                        break
+                    }
+                }
+            }
+            if (preferred !== "") {
+                hints[String(row) + ":" + String(column)] = preferred
+                usedHints[preferred] = true
+            }
+        }
+    }
+    generatedSecondaryCache[cacheKey] = hints
+    return hints
+}
+
 function secondarySymbolForLayout(layoutValue, row, column, numberRowVisible) {
     var layoutIndex = clampedIndex(layoutValue)
-    if (layoutIndex >= legacyLayoutCount)
-        return ""
+    if (layoutIndex >= legacyLayoutCount) {
+        var hints = generatedSecondaryMap(layoutIndex, numberRowVisible)
+        return hints[String(row) + ":" + String(column)] || ""
+    }
     if (layoutIndex === 0 && numberRowVisible) {
         var swap = qwertySwapFor(caption(layoutIndex, row, column, false))
         if (swap !== undefined)

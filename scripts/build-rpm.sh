@@ -3,9 +3,11 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 ARCH=${FUTO_ARCH:-aarch64}
-VERSION=0.4.2
-RELEASE=2
+VERSION=0.5.0
+RELEASE=1
 NAME=futo-keyboard-sailfish
+OUTPUT_DIR=${FUTO_RPM_OUTPUT_DIR:-$ROOT/build/rpm}
+BINARY_DIR=${FUTO_BINARY_DIR:-$ROOT/build/$ARCH}
 TOPDIR=$(mktemp -d)
 STAGING=$(mktemp -d)
 cleanup() {
@@ -22,18 +24,12 @@ fi
 
 mkdir -p "$TOPDIR"/{BUILD,BUILDROOT,RPMS,SOURCES,SPECS,SRPMS}
 mkdir -p "$STAGING/$NAME-$VERSION"
-tar -C "$ROOT" \
-    --exclude='./.git' \
-    --exclude='./.mb2' \
-    --exclude='./reference' \
-    --exclude='./build/rpm' \
-	--exclude='./build' \
-	--exclude='./emoji' \
-	--exclude='./upstream/dictionaries' \
-	--exclude='./voice/models' \
-	--exclude='./swipe/models' \
-    --exclude='./PAUSED-CHECKPOINT.md' \
-    -cf - . | tar -C "$STAGING/$NAME-$VERSION" -xf -
+# Package only repository files; ignored or local-only files never enter the
+# published source payload, even if they sit beside the checked-in sources.
+git -C "$ROOT" ls-files -z \
+    | grep -z -Ev '^(build/|reference/|emoji/|upstream/dictionaries/|voice/models/|swipe/models/|PAUSED-CHECKPOINT\.md$)' \
+    | tar -C "$ROOT" --null -T - -cf - \
+    | tar -C "$STAGING/$NAME-$VERSION" -xf -
 mkdir -p "$STAGING/$NAME-$VERSION/build/$ARCH"
 for file in \
     futo-keyboard-engine futo-keyboard-swipe futo-keyboard-helper futo-keyboard-secrets \
@@ -41,26 +37,13 @@ for file in \
     libfuto-maliit-policy.so.1 libcomposeplatforminputcontextplugin.so \
     libafutomaliitcomposewrapper.so libQt5WaylandClient.so.5.6.3 \
     libQt5WaylandClientFutoOriginal.so.5.6.3 stock-wayland.sha256; do
-    cp "$ROOT/build/$ARCH/$file" "$STAGING/$NAME-$VERSION/build/$ARCH/$file"
+    cp "$BINARY_DIR/$file" "$STAGING/$NAME-$VERSION/build/$ARCH/$file"
 done
-# Components that are not rebuilt here keep the paths they were first built
-# with, and those name the machine and account that built them. The engine and
-# helper are compiled with -ffile-prefix-map and carry none; the rest are
-# scrubbed in place. Refuse to package anything that still says otherwise
-# rather than finding out after a release is public.
-#
-# grep -c rather than grep -q: -q stops reading at the first match, strings
-# then dies of SIGPIPE, and under pipefail that failure would mask the match.
-FORBIDDEN='chatgpt|/mnt/c/users/[^b]|htheb|claude|codex|openai|anthropic'
-for binary in "$STAGING/$NAME-$VERSION/build/$ARCH"/*; do
-    test -f "$binary" || continue
-    hits=$(strings -a "$binary" 2>/dev/null | grep -ciE "$FORBIDDEN" || true)
-    if [ "${hits:-0}" -gt 0 ]; then
-        printf 'Build path or account name left in %s\n' "$binary" >&2
-        strings -a "$binary" | grep -iE "$FORBIDDEN" | head -3 >&2
-        exit 1
-    fi
-done
+# Some prebuilt dependency objects retain their original build roots in error
+# strings. Rewrite only staged copies, preserving every binary's byte offsets,
+# and reject the package if any host path remains.
+python3 "$ROOT/scripts/sanitize-build-paths.py" \
+    "$STAGING/$NAME-$VERSION/build/$ARCH"/*
 
 cp "$ROOT/emoji/manifest.json" "$STAGING/$NAME-$VERSION/emoji-manifest.json"
 mkdir -p "$STAGING/$NAME-$VERSION/emoji"
@@ -101,12 +84,17 @@ chmod 0755 "$STAGING/$NAME-$VERSION/scripts/"*.sh \
 
 tar -C "$STAGING" -czf "$TOPDIR/SOURCES/$NAME-$VERSION.tar.gz" "$NAME-$VERSION"
 cp "$ROOT/packaging/rpm/$NAME.spec" "$TOPDIR/SPECS/"
-rpmbuild --target "$ARCH" --nodeps --define "_topdir $TOPDIR" -bb "$TOPDIR/SPECS/$NAME.spec"
+rpmbuild --target "$ARCH" --nodeps --define "_topdir $TOPDIR" \
+    --define "_buildhost release-builder" -bb "$TOPDIR/SPECS/$NAME.spec"
 
-mkdir -p "$ROOT/build/rpm"
-OUTPUT_RPM="$ROOT/build/rpm/$NAME-$VERSION-$RELEASE.$ARCH.rpm"
+mkdir -p "$OUTPUT_DIR"
+OUTPUT_RPM="$OUTPUT_DIR/$NAME-$VERSION-$RELEASE.$ARCH.rpm"
+OUTPUT_SOURCE="$OUTPUT_DIR/$NAME-$VERSION-$ARCH-source.tar.gz"
+if [[ -e "$OUTPUT_RPM" || -e "$OUTPUT_SOURCE" ]]; then
+    echo "Release output already exists; refusing to overwrite it: $OUTPUT_DIR" >&2
+    exit 1
+fi
 cp "$TOPDIR/RPMS/$ARCH/$NAME-$VERSION-$RELEASE.$ARCH.rpm" "$OUTPUT_RPM"
-cp "$TOPDIR/SOURCES/$NAME-$VERSION.tar.gz" \
-    "$ROOT/build/rpm/$NAME-$VERSION-$ARCH-source.tar.gz"
+cp "$TOPDIR/SOURCES/$NAME-$VERSION.tar.gz" "$OUTPUT_SOURCE"
 rpm -qplv "$OUTPUT_RPM"
-sha256sum "$OUTPUT_RPM" "$ROOT/build/rpm/$NAME-$VERSION-$ARCH-source.tar.gz"
+sha256sum "$OUTPUT_RPM" "$OUTPUT_SOURCE"

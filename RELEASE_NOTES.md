@@ -1,17 +1,16 @@
-# FUTO Keyboard for Sailfish OS 0.4.2
+# FUTO Keyboard for Sailfish OS 0.5.0
 
 ## New features
 
-- Added option for "Vibrate while swiping"
-- Added "Uninstall FUTO Keyboard" to Maintenance
-- Hold Space now chooses between doing nothing, moving the cursor, or switching language
+- Added **Correct typos when pressing punctuation** as a separate setting.
+- Added adjustable number-row height.
+- Added **QWERTY (Regional)** as a separate layout option.
+- Added a scrollbar to the layout picker.
 
 ## Fixes
 
-- Tibetan letters are now visible, on the keyboard and in the rest of the system
-- Danish keyboard uses the Danish letter order instead of the Norwegian one
-- Norwegian keyboard is now a separate layout
-- Portuguese keyboards carry `ç` instead of the Spanish `ñ`
-- Dot key no longer draws a border around it
-- Swiping can start after punctuation, not only after a space
-- Much lower memory use for all languages (Romanian was around 350 MB, now under 100 MB)
+- The selected language is remembered after a reboot.
+- Incognito no longer accidentally turns on in ordinary text fields.
+- “Numbers across the top” on the 123 page works with all layouts.
+- Catalan is labeled correctly.
+- Long layout names scroll in Quick Settings instead of being cut off.

@@ -57,7 +57,7 @@ const (
 	forcedAppSupportDconfPath = "/sailfish/text_input/futo_keyboard/forcedAppSupportKeyEvents"
 	vaultAuthAction           = "org.hb.futo.keyboard.saved-login"
 	vaultSaveAuthAction       = "org.hb.futo.keyboard.save-login"
-	version                   = "0.4.0"
+	version                   = "0.5.0"
 )
 
 func zeroBytes(data []byte) {
@@ -4166,6 +4166,34 @@ func lastContextWord(context string) string {
 	return words[len(words)-1]
 }
 
+func englishContractionCorrection(language, typed, phrase string) string {
+	if language != "EN" && language != "EN_GB" && language != "EN_IN" {
+		return ""
+	}
+	// An all-caps token can be an acronym, rather than a missing apostrophe.
+	if typed == strings.ToUpper(typed) {
+		return ""
+	}
+	// The dictionary engine supplies exact English contractions as phrases.
+	// Multiword phrases and other suggestions must remain manual choices.
+	if strings.Count(phrase, "'") != 1 || strings.ContainsAny(phrase, " \t\r\n") ||
+		!strings.EqualFold(strings.ReplaceAll(phrase, "'", ""), typed) {
+		return ""
+	}
+	return phrase
+}
+
+func chooseContextCorrection(known, learned bool, contraction string,
+	candidates []correctionWord, word string, level int) string {
+	if known || learned {
+		return ""
+	}
+	if contraction != "" {
+		return contraction
+	}
+	return chooseCorrection(candidates, word, level)
+}
+
 func (service *service) analyzeContext(languagesCSV, word, context string,
 	limit, correctionLevel int32, showTyped, automaticLanguageDetection bool) (combinedAnalysis, error) {
 	result := combinedAnalysis{Suggestions: []string{}}
@@ -4185,6 +4213,7 @@ func (service *service) analyzeContext(languagesCSV, word, context string,
 	allKnown := false
 	ranked := make([]scoredWord, 0, int(limit)*len(languages))
 	corrections := make([]correctionWord, 0, 8*len(languages))
+	contractionCorrection := ""
 	detectedLanguage := languages[0]
 	bestLanguageScore := int64(-1)
 
@@ -4235,6 +4264,9 @@ func (service *service) analyzeContext(languagesCSV, word, context string,
 				!service.history.isSuppressed(phrase) {
 				ranked = append(ranked, scoredWord{Word: phrase,
 					Score: 3900000000 + contextBonus + runeBonus, Language: language})
+				if contractionCorrection == "" {
+					contractionCorrection = englishContractionCorrection(language, word, phrase)
+				}
 			}
 		}
 	}
@@ -4243,7 +4275,7 @@ func (service *service) analyzeContext(languagesCSV, word, context string,
 	// older suppression entry folded the two spellings together.
 	if word == "i" {
 		for _, language := range languages {
-			if language == "EN" || language == "EN_GB" {
+			if language == "EN" || language == "EN_GB" || language == "EN_IN" {
 				ranked = append(ranked, scoredWord{Word: "I", Score: 5000000000,
 					Language: language})
 				break
@@ -4287,9 +4319,9 @@ func (service *service) analyzeContext(languagesCSV, word, context string,
 	result.Suggestions = mergeRankedSuggestions(
 		word, showTyped, personal, ranked, int(limit))
 	result.Language = detectedLanguage
-	if !allKnown && !service.learned.containsLanguages(languages, word) {
-		result.Correction = chooseCorrection(corrections, word, int(correctionLevel))
-	}
+	result.Correction = chooseContextCorrection(allKnown,
+		service.learned.containsLanguages(languages, word), contractionCorrection,
+		corrections, word, int(correctionLevel))
 	return result, nil
 }
 

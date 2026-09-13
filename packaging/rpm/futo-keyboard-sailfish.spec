@@ -4,8 +4,8 @@
 %global _missing_build_ids_terminate_build 0
 
 Name:           futo-keyboard-sailfish
-Version:        0.4.2
-Release:        2
+Version:        0.5.0
+Release:        1
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
 License:        LicenseRef-FUTO-Source-First-1.1-kb AND GPL-3.0-only AND BSD-3-Clause AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND LGPL-2.1-or-later AND (LGPL-2.1-only OR LGPL-3.0-only)
 Source0:        %{name}-%{version}.tar.gz
@@ -194,6 +194,14 @@ fi
 %{_userunitdir}/maliit-server.service.d/10-futo-hardware-policy.conf
 
 %changelog
+* Sun Sep 13 2026 HtheB - 0.5.0-1
+- Add independent typo correction for punctuation, adjustable number-row
+  height, and a separately selectable QWERTY (Regional) layout.
+- Make the layout picker scrollable and keep long layout names readable.
+- Remember the selected language after reboot and correct Incognito state.
+- Show the numbers-across-the-top symbol page for all letter layouts.
+- Label Catalan correctly.
+
 
 * Wed Sep 09 2026 HtheB - 0.4.2-2
 - Add an option which vibrates on every letter a swipe passes over.

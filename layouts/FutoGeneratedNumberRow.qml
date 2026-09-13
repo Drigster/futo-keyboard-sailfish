@@ -11,7 +11,9 @@ KeyboardRow {
     readonly property int keyCount: LetterLayouts.numberRowLength(layoutIndex)
 
     followRowHeight: false
-    height: targetLayout ? targetLayout.keyHeight : 0
+    property bool fitKeysToRowHeight: true
+    height: targetLayout ? Math.round(targetLayout.keyHeight
+                                      * targetLayout.numberRowHeightScale) : 0
     opacity: targetLayout && targetLayout.cursorMoveMode ? 0 : 1
     separateButtonSizes: true
     splitIndex: Math.ceil(keyCount / 2)

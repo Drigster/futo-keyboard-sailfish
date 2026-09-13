@@ -12,6 +12,7 @@ Page {
         property bool predictionEnabled: true
         property bool nextWordPredictionEnabled: true
         property bool autoCorrectionEnabled: false
+        property bool punctuationCorrectionEnabled: false
         property int correctionLevel: 0
         property bool showTypedWord: true
         property bool autoSpaceAfterSuggestion: true
@@ -64,8 +65,10 @@ Page {
                                   + "the suggestion strip collapse completely.")
                 onClicked: {
                     settings.predictionEnabled = !checked
-                    if (!settings.predictionEnabled)
+                    if (!settings.predictionEnabled) {
                         settings.autoCorrectionEnabled = false
+                        settings.punctuationCorrectionEnabled = false
+                    }
                 }
             }
 
@@ -131,7 +134,9 @@ Page {
 
             ComboBox {
                 width: parent.width
-                enabled: settings.predictionEnabled && settings.autoCorrectionEnabled
+                enabled: settings.predictionEnabled
+                         && (settings.autoCorrectionEnabled
+                             || settings.punctuationCorrectionEnabled)
                 label: qsTr("Correction strength")
                 currentIndex: Math.max(0, Math.min(2, settings.correctionLevel))
                 onCurrentIndexChanged: settings.correctionLevel = currentIndex
@@ -152,6 +157,18 @@ Page {
             }
 
             SectionHeader { text: qsTr("Punctuation") }
+
+            TextSwitch {
+                width: parent.width
+                automaticCheck: false
+                checked: settings.punctuationCorrectionEnabled
+                enabled: settings.predictionEnabled
+                text: qsTr("Correct typos when pressing punctuation")
+                description: qsTr("Uses the correction shown above the keyboard. "
+                                  + "Web addresses, email addresses, and private fields "
+                                  + "are left unchanged.")
+                onClicked: settings.punctuationCorrectionEnabled = !checked
+            }
 
             TextSwitch {
                 width: parent.width

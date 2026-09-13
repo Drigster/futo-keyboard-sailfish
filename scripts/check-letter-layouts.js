@@ -54,6 +54,9 @@ for (let layout = 0; layout < context.count; ++layout) {
 }
 
 assert(context.name(0) === "QWERTY", "Persisted QWERTY index changed");
+assert(context.name(context.generatedIndexById.qwerty) === "QWERTY (regional)"
+       && context.menuName(context.generatedIndexById.qwerty) === "QWERTY-REG",
+       "The regional QWERTY must be distinguishable from the classic QWERTY");
 assert(context.name(3) === "Turkish Q", "Persisted Turkish index changed");
 assert(context.name(16) === "Turkish F", "Turkish F must remain appended at index 16");
 assert(context.name(17) === "Slovenian QWERTZ",
@@ -154,6 +157,31 @@ assert(context.defaultForLanguage("DA") !== context.defaultForLanguage("NB"),
 assert(context.defaultForLanguage("PT_PT") !== context.defaultForLanguage("ES"),
        "Portuguese must not share the Spanish layout");
 
+// FUTO's Catalan default is the ç-ending QWERTY layout also used by
+// Portuguese. Its visible name must be Catalan, while the language-specific
+// long-press letters (especially the Catalan middle-dot form) stay intact.
+const catalan = context.defaultForLanguage("CA");
+assert(catalan === context.defaultForLanguage("PT_PT"),
+       "Catalan should use FUTO's ç-ending QWERTY layout");
+assert(context.letter(catalan, 1, 9) === "ç",
+       "Catalan home row must have ç as a direct key");
+assert(context.nameForLanguage(catalan, "CA") === "Catalan QWERTY"
+       && context.menuNameForLanguage(catalan, "CA") === "CA-QWERTY",
+       "Catalan must not be labelled Portuguese");
+assert(context.nameForLanguage(catalan, "PT_PT") === "Portuguese QWERTY"
+       && context.menuNameForLanguage(catalan, "PT_PT") === "PT-QWERTY",
+       "Portuguese must retain its own label");
+assert(context.nameForLanguage(0, "CA") === "QWERTY",
+       "A manually selected Catalan layout must keep its own name");
+for (const [row, column, expected] of [
+    [1, 0, "à"], [0, 2, "è"], [0, 2, "é"], [0, 7, "ï"],
+    [1, 8, "l·l"], [0, 8, "ò"], [0, 8, "ó"], [0, 6, "ü"]
+]) {
+    assert(context.alternativeChoices(catalan, row, column, "CA", false, false)
+           .some(choice => choice.output === expected),
+           "Catalan long-press choice " + expected + " is missing");
+}
+
 assert(context.legacyDefaultForLanguage("DE") === 0,
        "Legacy Latin default must remain QWERTY for migration");
 
@@ -166,5 +194,53 @@ for (const language of context.Catalogue.languages) {
 }
 assert(!context.Catalogue.languages.some(item => item.code === "IW"),
        "Hebrew must stay excluded");
+
+// Every imported layout gets the shared secondary shortcuts on its main
+// typing rows, without losing its exact upstream long-press alternatives.
+for (let layout = context.legacyLayoutCount; layout < context.count; ++layout) {
+    const firstMainRow = Math.max(0, context.rowCount(layout) - 3);
+    for (const numberRowVisible of [false, true]) {
+        const seenHints = new Set();
+        for (let row = firstMainRow; row < context.rowCount(layout); ++row) {
+            for (let column = 0; column < context.rowLength(layout, row); ++column) {
+                if (context.keyKind(layout, row, column) !== "character")
+                    continue;
+                const where = context.name(layout) + " row " + row
+                    + " key " + column + (numberRowVisible ? " with numbers" : "");
+                const hint = context.secondarySymbolForLayout(
+                    layout, row, column, numberRowVisible);
+                assert(hint !== "", where + " has no secondary shortcut");
+                assert(hint !== context.output(layout, row, column, false),
+                       where + " repeats its primary output");
+                assert(!seenHints.has(hint), where + " repeats shortcut " + hint);
+                seenHints.add(hint);
+
+                const alternatives = context.alternativeChoices(
+                    layout, row, column, "", false, numberRowVisible);
+                const popup = context.structuredChoicesWithSecondary(
+                    hint, alternatives, true);
+                assert(!popup.some(choice => choice.output
+                       === context.output(layout, row, column, false)),
+                       where + " repeats its primary key in the long-press popup");
+                assert(!popup.some(choice => choice.output === hint),
+                       where + " duplicates the highlighted shortcut");
+                for (const choice of alternatives) {
+                    if (choice.output !== hint)
+                        assert(popup.some(item => item.output === choice.output),
+                               where + " loses upstream alternative " + choice.output);
+                }
+                assert(context.structuredChoicesWithSecondary(
+                       hint, alternatives, false) === alternatives,
+                       where + " still adds shortcuts when disabled");
+            }
+        }
+    }
+}
+const bulgarian = context.defaultForLanguage("BG");
+assert(context.secondarySymbolForLayout(bulgarian, 0, 7, false) === "8",
+       "Bulgarian и should have a visible number shortcut");
+assert(context.alternativeChoices(bulgarian, 0, 7, "BG", false, false)
+       .some(choice => choice.output === "ѝ"),
+       "Bulgarian и must retain its upstream ѝ alternative");
 
 process.stdout.write("Letter layout validation passed: " + context.count + " layouts.\n");

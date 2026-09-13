@@ -138,8 +138,9 @@ InputHandler {
     readonly property bool inputSessionActive: active || MInputMethodQuick.active
     readonly property bool editorSessionActive: inputSessionActive
             || !!MInputMethodQuick.extensions.focusState
+    // A field that only turns suggestions off is not private: many ordinary
+    // Android fields do it, and some only while they are still loading.
     readonly property bool automaticIncognitoMode: MInputMethodQuick.hiddenText
-            || (!MInputMethodQuick.predictionEnabled && !urlField)
             || !!MInputMethodQuick.extensions.privateMode
             || !!MInputMethodQuick.extensions.incognitoMode
             || !!MInputMethodQuick.extensions.sensitiveInput
@@ -1250,13 +1251,13 @@ InputHandler {
         // it and mark that exact item as primary.
         if (primary !== "") {
             var primaryIndex = suggestions.indexOf(primary)
-            if (primaryIndex < 0) {
-                var typed = String(activeSuggestionQuery)
-                var insertAt = keyboardSettings.showTypedWord
-                        && suggestions.length > 0
-                        && suggestions[0] === typed ? 1 : 0
-                suggestions.splice(insertAt, 0, primary)
-            }
+            if (primaryIndex >= 0)
+                suggestions.splice(primaryIndex, 1)
+            var typed = String(activeSuggestionQuery)
+            var insertAt = keyboardSettings.showTypedWord
+                    && suggestions.length > 0
+                    && suggestions[0] === typed ? 1 : 0
+            suggestions.splice(insertAt, 0, primary)
         }
         if (suggestions.length > maximum)
             suggestions = suggestions.slice(0, maximum)
@@ -1280,6 +1281,15 @@ InputHandler {
                 return correctionCandidate
         }
         return ""
+    }
+
+    function correctedWordForCommit(original) {
+        var visibleCorrection = visiblePrimaryCorrection()
+        if (correctionQuery !== original || visibleCorrection === ""
+                || visibleCorrection.toLocaleLowerCase()
+                   === original.toLocaleLowerCase())
+            return original
+        return visibleCorrection
     }
 
     function predictionSignature() {
@@ -1509,10 +1519,12 @@ InputHandler {
         property bool languageTurkish: true
         property string enabledLanguages: "EN,NL,TR"
         property int settingsVersion: 0
+        property string lastDetectedLanguage: ""
         property bool automaticLanguageDetection: true
         property bool nextWordPredictionEnabled: true
         property bool predictionEnabled: true
         property bool autoCorrectionEnabled: false
+        property bool punctuationCorrectionEnabled: false
         property int correctionLevel: 0
         property bool personalLearningEnabled: true
         property bool urlHistoryEnabled: false
@@ -1567,14 +1579,8 @@ InputHandler {
 				voiceStopAfterSilence = false
 		}
 
-        onAutoCorrectionEnabledChanged: {
-            if (!autoCorrectionEnabled) {
-                futoHandler.correctionQuery = ""
-                futoHandler.correctionCandidate = ""
-            } else {
-                futoHandler.requestSuggestionsSoon()
-            }
-        }
+        onAutoCorrectionEnabledChanged: futoHandler.requestSuggestionsSoon()
+        onPunctuationCorrectionEnabledChanged: futoHandler.requestSuggestionsSoon()
         onEnabledLanguagesChanged: futoHandler.requestSuggestionsSoon()
         onAutomaticLanguageDetectionChanged: futoHandler.requestSuggestionsSoon()
         onNextWordPredictionEnabledChanged: futoHandler.requestSuggestionsSoon()
@@ -1721,6 +1727,11 @@ InputHandler {
     }
 
     Component.onCompleted: {
+        // Languages sharing one layout are told apart only by detection, which
+        // was forgotten on every restart. The layout corrects this if the
+        // language is no longer on the active keyboard.
+        if (String(keyboardSettings.lastDetectedLanguage) !== "")
+            detectedLanguage = String(keyboardSettings.lastDetectedLanguage)
         if (keyboardSettings.settingsVersion < 4) {
             var migrated = []
             if (keyboardSettings.languageEnglish)
@@ -3477,13 +3488,13 @@ InputHandler {
                             // this Sailfish release; highlighting communicates
                             // the enabled state without changing the glyph.
                             source: "image://theme/icon-m-incognito"
-                            color: futoHandler.incognitoMode
+                            color: keyboardSettings.incognitoMode
                                    ? Theme.highlightColor : Theme.primaryColor
                         }
                         Label {
                             anchors.horizontalCenter: parent.horizontalCenter
                             text: qsTr("Incognito")
-                            color: futoHandler.incognitoMode
+                            color: keyboardSettings.incognitoMode
                                    ? Theme.highlightColor : Theme.primaryColor
                             font.pixelSize: Theme.fontSizeExtraSmall
                         }
@@ -3544,8 +3555,11 @@ InputHandler {
                             id: quickActionButton
                             property string actionId: String(modelData)
                             property bool languageHoldConsumed: false
+                            // The Incognito tile shows the switch it flips. Lit
+                            // by automatic privacy as well, it looked on, and a
+                            // tap meant to turn it off turned it on for good.
                             readonly property bool selectedAction:
-                                (actionId === "incognito" && futoHandler.incognitoMode)
+                                (actionId === "incognito" && keyboardSettings.incognitoMode)
                                 || (actionId === "microphone"
                                     && futoHandler.voiceRecording)
                                 || (actionId === "sound"
@@ -3692,13 +3706,61 @@ InputHandler {
                                     }
                                 }
 
-                                Label {
+                                Item {
+                                    id: configuredLayoutNameTicker
                                     x: Theme.paddingSmall
                                     width: parent.width - 2 * Theme.paddingSmall
-                                    horizontalAlignment: Text.AlignHCenter
-                                    text: keyboardLayout.currentLetterLayoutMenuName
-                                    font.pixelSize: Theme.fontSizeExtraSmall
-                                    truncationMode: TruncationMode.Fade
+                                    height: configuredLayoutNameText.implicitHeight
+                                    clip: true
+                                    property real textOffset: 0
+                                    readonly property real scrollDistance: Math.max(
+                                        0, configuredLayoutNameText.implicitWidth - width)
+
+                                    function restartMarquee() {
+                                        textOffset = 0
+                                        if (visible && scrollDistance > 0)
+                                            configuredLayoutNameMarquee.restart()
+                                    }
+
+                                    onWidthChanged: restartMarquee()
+                                    onVisibleChanged: restartMarquee()
+
+                                    Label {
+                                        id: configuredLayoutNameText
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        x: configuredLayoutNameTicker.scrollDistance > 0
+                                           ? -configuredLayoutNameTicker.textOffset
+                                           : (configuredLayoutNameTicker.width - implicitWidth) / 2
+                                        text: keyboardLayout.currentLetterLayoutMenuName
+                                        font.pixelSize: Theme.fontSizeExtraSmall
+                                        onTextChanged: configuredLayoutNameTicker.restartMarquee()
+                                    }
+
+                                    SequentialAnimation {
+                                        id: configuredLayoutNameMarquee
+                                        running: configuredLayoutNameTicker.visible
+                                                 && configuredLayoutNameTicker.scrollDistance > 0
+                                        loops: Animation.Infinite
+                                        PauseAnimation { duration: 850 }
+                                        NumberAnimation {
+                                            target: configuredLayoutNameTicker
+                                            property: "textOffset"
+                                            from: 0
+                                            to: configuredLayoutNameTicker.scrollDistance
+                                            duration: Math.max(650,
+                                                configuredLayoutNameTicker.scrollDistance * 45)
+                                            easing.type: Easing.Linear
+                                        }
+                                        PauseAnimation { duration: 700 }
+                                        NumberAnimation {
+                                            target: configuredLayoutNameTicker
+                                            property: "textOffset"
+                                            to: 0
+                                            duration: 350
+                                            easing.type: Easing.InOutQuad
+                                        }
+                                        PauseAnimation { duration: 350 }
+                                    }
                                 }
                             }
                         }
@@ -3898,6 +3960,11 @@ InputHandler {
         }
 		refreshApplicationSuggestions()
     }
+
+	onDetectedLanguageChanged: {
+		if (String(keyboardSettings.lastDetectedLanguage) !== detectedLanguage)
+			keyboardSettings.lastDetectedLanguage = detectedLanguage
+	}
 
 	onIncognitoModeChanged: {
 		if (incognitoMode) {
@@ -4431,7 +4498,8 @@ InputHandler {
                 result = { "suggestions": [], "correction": "" }
             }
             var primaryCorrection = keyboardSettings.predictionEnabled
-                    && keyboardSettings.autoCorrectionEnabled
+                    && (keyboardSettings.autoCorrectionEnabled
+                        || keyboardSettings.punctuationCorrectionEnabled)
                     && result.correction ? String(result.correction) : ""
             futoHandler.correctionQuery = primaryCorrection !== "" ? query : ""
             futoHandler.correctionCandidate = primaryCorrection
@@ -4742,7 +4810,8 @@ InputHandler {
         var correctedSpaceIndex = -1
         var punctuationText = pressedKey && pressedKey.text
                 ? String(pressedKey.text) : ""
-        var punctuationKey = ",.?!:;".indexOf(punctuationText) >= 0
+        var punctuationKey = punctuationText.length === 1
+                && ",.?!:;،؟؛".indexOf(punctuationText) >= 0
         if (pressedKey.key !== Qt.Key_Space && !punctuationKey)
             clearCommittedSpace()
         keyboard.expandedPaste = false
@@ -4753,15 +4822,10 @@ InputHandler {
         if (pressedKey.key === Qt.Key_Space) {
             if (preedit !== "") {
                 var original = preedit
-                var accepted = original
-                var visibleCorrection = visiblePrimaryCorrection()
-                var corrected = keyboardSettings.autoCorrectionEnabled
-                        && correctionQuery === original
-                        && visibleCorrection !== ""
-                        && visibleCorrection.toLocaleLowerCase()
-                           !== original.toLocaleLowerCase()
-                if (corrected)
-                    accepted = visibleCorrection
+                var accepted = keyboardSettings.autoCorrectionEnabled
+                        && keyboardSettings.predictionEnabled
+                        ? correctedWordForCommit(original) : original
+                var corrected = accepted !== original
 
                 var cursorBeforeCommit = MInputMethodQuick.cursorPosition
                 learn(accepted)
@@ -4854,8 +4918,14 @@ InputHandler {
                         && spaceAfterPunctuationAllowed(punctuationText)
                         ? " " : ""
                 if (preedit !== "") {
-                    learn(preedit)
-                    commit(preedit + pressedKey.text + trailingSpace)
+                    var acceptedPunctuationWord = preedit
+                    if (punctuationKey && keyboardSettings.predictionEnabled
+                            && keyboardSettings.punctuationCorrectionEnabled
+                            && smartPunctuationField()
+                            && !punctuationInsideAddress(punctuationText))
+                        acceptedPunctuationWord = correctedWordForCommit(preedit)
+                    learn(acceptedPunctuationWord)
+                    commit(acceptedPunctuationWord + pressedKey.text + trailingSpace)
                 } else if (keyboardSettings.smartPunctuationEnabled
                            && punctuationKey && smartPunctuationField()
                            && spaceImmediatelyBeforeCursor()) {

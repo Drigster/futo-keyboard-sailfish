@@ -1024,6 +1024,57 @@ func TestChooseCorrectionUsesGlobalRunnerUp(t *testing.T) {
 	}
 }
 
+func TestEnglishContractionCorrection(t *testing.T) {
+	tests := []struct {
+		language string
+		typed    string
+		phrase   string
+		want     string
+	}{
+		{"EN", "im", "I'm", "I'm"},
+		{"EN_GB", "ive", "I've", "I've"},
+		{"EN_IN", "Im", "I'm", "I'm"},
+		{"EN", "dont", "don't", "don't"},
+		{"EN", "IM", "I'M", ""},
+		{"DE", "im", "I'm", ""},
+		{"EN", "im", "Important", ""},
+		{"EN", "im", "I'm ok", ""},
+		{"EN", "im", "I am", ""},
+	}
+	for _, test := range tests {
+		got := englishContractionCorrection(test.language, test.typed, test.phrase)
+		if got != test.want {
+			t.Errorf("englishContractionCorrection(%q, %q, %q) = %q, want %q",
+				test.language, test.typed, test.phrase, got, test.want)
+		}
+	}
+}
+
+func TestContextCorrectionProtectsOtherLanguagesAndLearnedWords(t *testing.T) {
+	otherSuggestions := []correctionWord{{Word: "Important", Score: 220}}
+	tests := []struct {
+		known   bool
+		learned bool
+		want    string
+	}{
+		{false, false, "I'm"},
+		{true, false, ""},
+		{false, true, ""},
+	}
+	for _, test := range tests {
+		got := chooseContextCorrection(test.known, test.learned,
+			"I'm", otherSuggestions, "im", 2)
+		if got != test.want {
+			t.Errorf("chooseContextCorrection(known=%v, learned=%v) = %q, want %q",
+				test.known, test.learned, got, test.want)
+		}
+	}
+	if got := chooseContextCorrection(false, false, "",
+		[]correctionWord{{Word: "the", Score: 190}}, "teh", 0); got != "the" {
+		t.Fatalf("ordinary dictionary correction = %q, want the", got)
+	}
+}
+
 func TestMergeRankedSuggestionsDeduplicatesAcrossLanguages(t *testing.T) {
 	candidates := []scoredWord{
 		{Word: "Hello", Score: 200},

@@ -350,7 +350,8 @@ Page {
                                    ? Theme.secondaryHighlightColor : Theme.secondaryColor
                             font.pixelSize: Theme.fontSizeSmall
                             text: qsTr("%1%2").arg(
-                                  LetterLayouts.name(page.assignedLayout(code))).arg(
+                                  LetterLayouts.nameForLanguage(
+                                      page.assignedLayout(code), code)).arg(
                                   !page.predictionSupported(code)
                                   ? qsTr(" · direct typing only")
                                   : page.dictionaryContentReady

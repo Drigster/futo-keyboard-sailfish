@@ -83,6 +83,7 @@ Page {
         settings.nextWordPredictionEnabled = true
         settings.predictionEnabled = true
         settings.autoCorrectionEnabled = false
+        settings.punctuationCorrectionEnabled = false
         settings.correctionLevel = 0
         settings.personalLearningEnabled = true
         settings.urlHistoryEnabled = false
@@ -100,6 +101,7 @@ Page {
         settings.incognitoOnPrivacySwitch = false
         settings.hideKeyPreviewsInIncognito = false
         settings.numberRowEnabled = false
+        settings.numberRowHeightScale = 1.0
         settings.symbolNumberLayout = 0
         settings.secondarySymbolsEnabled = true
         settings.separatedKeysEnabled = true
@@ -182,6 +184,7 @@ Page {
         property bool nextWordPredictionEnabled: true
         property bool predictionEnabled: true
         property bool autoCorrectionEnabled: false
+        property bool punctuationCorrectionEnabled: false
         property int correctionLevel: 0
         property bool personalLearningEnabled: true
         property bool urlHistoryEnabled: false
@@ -199,6 +202,7 @@ Page {
         property bool incognitoOnPrivacySwitch: false
         property bool hideKeyPreviewsInIncognito: false
         property bool numberRowEnabled: false
+        property real numberRowHeightScale: 1.0
         property int symbolNumberLayout: 0
         property bool secondarySymbolsEnabled: true
         property bool separatedKeysEnabled: true

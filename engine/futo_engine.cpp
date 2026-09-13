@@ -1279,7 +1279,8 @@ int main(int argc, char **argv) {
             } else if (topCommand) {
                 printJsonWords(dictionary->second->topWords(limit));
             } else if (analyzeCommand) {
-                const bool englishContractions = fields[1] == "EN" || fields[1] == "EN_GB";
+                const bool englishContractions = fields[1] == "EN" || fields[1] == "EN_GB"
+                        || fields[1] == "EN_IN";
                 printJsonAnalysis(dictionary->second->analyze(
                         fields[3], limit, englishContractions));
             } else {

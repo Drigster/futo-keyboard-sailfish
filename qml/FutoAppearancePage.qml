@@ -72,6 +72,7 @@ Page {
         id: settings
         path: "/sailfish/text_input/futo_keyboard"
         property bool numberRowEnabled: false
+        property real numberRowHeightScale: 1.0
         property int symbolNumberLayout: 0
         property bool secondarySymbolsEnabled: true
         property bool separatedKeysEnabled: true
@@ -207,6 +208,19 @@ Page {
                 checked: settings.numberRowEnabled
                 text: qsTr("Show number row")
                 onClicked: settings.numberRowEnabled = !checked
+            }
+
+            Slider {
+                width: parent.width
+                visible: settings.numberRowEnabled
+                label: qsTr("Number row height")
+                minimumValue: 0.5
+                maximumValue: 1.0
+                stepSize: 0.05
+                value: Math.max(minimumValue, Math.min(maximumValue,
+                                                       settings.numberRowHeightScale))
+                valueText: Math.round(value * 100) + "%"
+                onReleased: settings.numberRowHeightScale = Math.round(value * 20) / 20
             }
 
             ComboBox {

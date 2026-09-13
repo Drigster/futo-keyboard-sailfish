@@ -58,6 +58,7 @@ FutoKeyboardLayout {
         id: layoutSettings
         path: "/sailfish/text_input/futo_keyboard"
         property bool numberRowEnabled: false
+        property real numberRowHeightScale: 1.0
         property int layoutVariant: 0
         property string layoutAssignments: "{}"
         property int layoutAssignmentVersion: 0
@@ -100,12 +101,13 @@ FutoKeyboardLayout {
 	readonly property int letterRowCount: LetterLayouts.rowCount(layoutVariant)
 	readonly property bool effectiveNumberRowEnabled: numberRowEnabled
 			|| LetterLayouts.numberRowRequired(layoutVariant)
-	readonly property real numberRowHeightScale: 1.0
+	readonly property real numberRowHeightScale: Math.max(0.5, Math.min(1.0,
+			isFinite(Number(layoutSettings.numberRowHeightScale))
+			? Number(layoutSettings.numberRowHeightScale) : 1.0))
 	readonly property real keyboardPanelHeight: (1 + letterRowCount
 			+ (effectiveNumberRowEnabled
 			? numberRowHeightScale : 0)) * keyHeight
     readonly property bool automaticPrivateInput: MInputMethodQuick.hiddenText
-            || !MInputMethodQuick.predictionEnabled
             || !!MInputMethodQuick.extensions.privateMode
             || !!MInputMethodQuick.extensions.incognitoMode
             || !!MInputMethodQuick.extensions.sensitiveInput
@@ -124,8 +126,11 @@ FutoKeyboardLayout {
 		&& layoutSettings.mergeSameLayoutLanguages
     readonly property int languageSwitchCount: languagesShareActiveLayout
             ? enabledLetterLayoutCount : enabledLanguageCount
-    readonly property string currentLetterLayoutName: letterLayoutName(layoutVariant)
-    readonly property string currentLetterLayoutMenuName: LetterLayouts.menuName(layoutVariant)
+    readonly property string currentLetterLayoutName: letterLayoutName(
+            layoutVariant, selectedPredictionLanguage(layoutVariant))
+    readonly property string currentLetterLayoutMenuName:
+            LetterLayouts.menuNameForLanguage(
+                layoutVariant, selectedPredictionLanguage(layoutVariant))
     readonly property string currentLayoutLanguages: languagesShareActiveLayout
 			? languageNamesForLayout(layoutVariant)
 			: LanguageData.name(selectedPredictionLanguage(layoutVariant))
@@ -175,12 +180,12 @@ FutoKeyboardLayout {
                                          && !extendedSymbolMode
                                          && !extraKeysMode
     readonly property bool numpadLeftAligned: symbolNumberLayout === 2
-    // QWERTY draws its 123 page from its own arrangement rather than from the
-    // letter rows, which have neither the shape nor the symbols for it.
+    // Every layout draws the across-the-top 123 page from this shared symbol
+    // arrangement rather than reusing its letter rows, which may have a
+    // different shape and cannot supply the required symbol keys.
     // Tapping {&= opens this second symbol page; holding it still opens the
     // categorised picker, which is a different view entirely.
-    readonly property bool qwertySecondSymbolPage: layoutVariant === 0
-                                         && symbolNumberLayout === 0
+    readonly property bool topRowSecondSymbolPage: symbolNumberLayout === 0
                                          && attributes.inSymView
                                          && attributes.inSymView2
                                          && !emojiMode
@@ -189,8 +194,7 @@ FutoKeyboardLayout {
                                          && !layoutEditorMode
                                          && !clipboardMode
                                          && !credentialMode
-    readonly property bool qwertySymbolPage: layoutVariant === 0
-                                         && symbolNumberLayout === 0
+    readonly property bool topRowSymbolPage: symbolNumberLayout === 0
                                          && attributes.inSymView
                                          && !attributes.inSymView2
                                          && !emojiMode
@@ -536,8 +540,8 @@ FutoKeyboardLayout {
         return LetterLayouts.rowCount(layoutValue)
     }
 
-    function letterLayoutName(value) {
-        return LetterLayouts.name(value)
+    function letterLayoutName(value, languageCode) {
+        return LetterLayouts.nameForLanguage(value, languageCode)
     }
 
     function letterAt(row, column) {
@@ -1150,6 +1154,13 @@ FutoKeyboardLayout {
     }
 
     Timer {
+        id: numberRowRelayoutTimer
+        interval: 0
+        repeat: false
+        onTriggered: root.updateSizes()
+    }
+
+    Timer {
         id: controlTimeout
         interval: 7000
         onTriggered: root.hideControlStrip()
@@ -1245,6 +1256,7 @@ FutoKeyboardLayout {
             root.synchronizeDetectedLanguage()
         }
         onNumberRowEnabledChanged: root.updateSizes()
+        onNumberRowHeightScaleChanged: numberRowRelayoutTimer.restart()
         onSymbolNumberLayoutChanged: root.updateSizes()
         onAutoCapitalizationEnabledChanged: root.applyConfiguredAutocaps()
         onExtendedSymbolFavoritesJsonChanged: root.loadExtendedSymbolFavorites()
@@ -1261,6 +1273,11 @@ FutoKeyboardLayout {
         applyConfiguredAutocaps()
     }
 
+    // At start-up the layout exists before its input handler does, so the
+    // call above finds nothing to correct and Space kept showing English on
+    // a German keyboard until the first word was typed.
+    onHandlerChanged: synchronizeDetectedLanguage()
+
     FutoDesktopToolbar {
         targetLayout: root
     }
@@ -1268,25 +1285,28 @@ FutoKeyboardLayout {
     KeyboardRow {
 		id: numberRow
 		followRowHeight: false
-		height: root.keyHeight
+		property bool fitKeysToRowHeight: true
+		height: Math.round(root.keyHeight * (root.effectiveNumberRowEnabled
+			? root.numberRowHeightScale : 1.0))
         opacity: root.cursorMoveMode ? 0 : 1
         visible: !root.emojiMode && !root.extendedSymbolMode
                  && !root.extraKeysMode
                  && !root.layoutEditorMode && !root.clipboardMode
 				 && !root.credentialMode
-                 && !root.numpadMode && !root.qwertySecondSymbolPage
-                 && (root.effectiveNumberRowEnabled || root.qwertySymbolPage)
-                 && LetterLayouts.numberRowLength(root.layoutVariant) === 0
-        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("1"); captionShifted: caption; symView: root.layoutVariant === 0 ? caption : "!"; symView2: "¹" }
-        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("2"); captionShifted: caption; symView: root.layoutVariant === 0 ? caption : "@"; symView2: "²" }
-        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("3"); captionShifted: caption; symView: root.layoutVariant === 0 ? caption : "#"; symView2: "³" }
-        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("4"); captionShifted: caption; symView: root.layoutVariant === 0 ? caption : "$"; symView2: "€" }
-        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("5"); captionShifted: caption; symView: root.layoutVariant === 0 ? caption : "%"; symView2: "‰" }
-        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("6"); captionShifted: caption; symView: root.layoutVariant === 0 ? caption : "^"; symView2: "¼" }
-        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("7"); captionShifted: caption; symView: root.layoutVariant === 0 ? caption : "&"; symView2: "½" }
-        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("8"); captionShifted: caption; symView: root.layoutVariant === 0 ? caption : "*"; symView2: "¾" }
-        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("9"); captionShifted: caption; symView: root.layoutVariant === 0 ? caption : "("; symView2: "[" }
-        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("0"); captionShifted: caption; symView: root.layoutVariant === 0 ? caption : ")"; symView2: "]" }
+                 && !root.numpadMode && !root.topRowSecondSymbolPage
+                 && (root.topRowSymbolPage
+                     || (root.effectiveNumberRowEnabled
+                         && LetterLayouts.numberRowLength(root.layoutVariant) === 0))
+        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("1"); captionShifted: caption; symView: "1"; symView2: "¹" }
+        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("2"); captionShifted: caption; symView: "2"; symView2: "²" }
+        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("3"); captionShifted: caption; symView: "3"; symView2: "³" }
+        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("4"); captionShifted: caption; symView: "4"; symView2: "€" }
+        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("5"); captionShifted: caption; symView: "5"; symView2: "‰" }
+        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("6"); captionShifted: caption; symView: "6"; symView2: "¼" }
+        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("7"); captionShifted: caption; symView: "7"; symView2: "½" }
+        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("8"); captionShifted: caption; symView: "8"; symView2: "¾" }
+        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("9"); captionShifted: caption; symView: "9"; symView2: "[" }
+        FutoCharacterKey { secondaryHintEligible: false; caption: root.digitForLayout("0"); captionShifted: caption; symView: "0"; symView2: "]" }
     }
 
     FutoGeneratedNumberRow {
@@ -1295,14 +1315,15 @@ FutoKeyboardLayout {
         visible: !root.emojiMode && !root.extendedSymbolMode
                  && !root.extraKeysMode && !root.layoutEditorMode
                  && !root.clipboardMode && !root.credentialMode
-                 && !root.numpadMode && root.effectiveNumberRowEnabled
+                 && !attributes.inSymView && !root.numpadMode
+                 && root.effectiveNumberRowEnabled
                  && LetterLayouts.numberRowLength(root.layoutVariant) > 0
     }
 
     FutoSymbolLayout {
         width: parent.width
         targetLayout: root
-        visible: root.qwertySymbolPage
+        visible: root.topRowSymbolPage
     }
 
     FutoLetterRow { targetLayout: root; layoutIndex: root.layoutVariant; rowIndex: 0 }
@@ -1317,7 +1338,7 @@ FutoKeyboardLayout {
                  && !root.extraKeysMode
                  && !root.layoutEditorMode && !root.clipboardMode
 				 && !root.credentialMode
-                 && !root.numpadMode && !root.qwertySecondSymbolPage
+                 && !root.numpadMode && !root.topRowSecondSymbolPage
         targetLayout: root
         symbolNumberLayout: root.symbolNumberLayout
     }
@@ -1325,7 +1346,7 @@ FutoKeyboardLayout {
     FutoNumpadLayout {
         // Also serves the {&= page, which holds the same symbols; sharing one
         // component keeps the two from drifting apart.
-        visible: (root.numpadMode || root.qwertySecondSymbolPage)
+        visible: (root.numpadMode || root.topRowSecondSymbolPage)
                  && !root.extraKeysMode
                  && !root.layoutEditorMode && !root.clipboardMode
 				 && !root.credentialMode

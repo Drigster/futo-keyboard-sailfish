@@ -1,4 +1,4 @@
-/* The two symbol rows of the QWERTY 123 page.
+/* The two symbol rows of the across-the-top 123 page.
  *
  * The page cannot be drawn by lending the letter rows their secondary symbols:
  * it holds ten symbols where the home row has nine keys and eight where the
