@@ -161,6 +161,11 @@ InputHandler {
     readonly property bool urlField: explicitUrlField || urlShapedEditorText()
     readonly property bool passwordField: MInputMethodQuick.hiddenText
             || !!MInputMethodQuick.extensions.sensitiveInput
+	readonly property bool rightToLeftPreedit: keyboard && keyboard.layout
+	        && ((keyboard.layout.usesArabicDigits !== undefined
+	             && keyboard.layout.usesArabicDigits)
+	            || (keyboard.layout.usesPersianDigits !== undefined
+	                && keyboard.layout.usesPersianDigits))
 	// Some terminal and console editors do not render Maliit's preedit text.
 	// Commit each character immediately when the editor explicitly disables
 	// prediction, or when its application identity identifies a terminal. URL
@@ -232,6 +237,27 @@ InputHandler {
 
     signal suggestionsUpdated()
     signal typingContinued()
+
+	// The FUTO layout is registered as one language-neutral Sailfish keyboard,
+	// so an empty editor cannot infer paragraph direction from its layout model.
+	// Prefix only the temporary preedit sent to the editor with RLM.  The logical
+	// preedit stays marker-free and sendCommit() receives marker-free text, so no
+	// invisible direction character is stored in the document.
+	function displayedPreedit(text) {
+		text = String(text || "")
+		return rightToLeftPreedit && text !== "" ? "\u200f" + text : text
+	}
+
+	function sendLogicalPreedit(text, format, replacementStart, replacementLength) {
+		var displayed = displayedPreedit(text)
+		if (arguments.length >= 4)
+			MInputMethodQuick.sendPreedit(displayed, format,
+			                              replacementStart, replacementLength)
+		else if (arguments.length >= 2)
+			MInputMethodQuick.sendPreedit(displayed, format)
+		else
+			MInputMethodQuick.sendPreedit(displayed)
+	}
 
 	function endForcedAppSupportSession() {
 		if (!keyboardSettings.forcedAppSupportKeyEvents)
@@ -1559,6 +1585,7 @@ InputHandler {
         // this session must use hardware-style key events instead.
         property bool forcedAppSupportKeyEvents: false
         property bool voiceTypingEnabled: false
+        property string voiceModel: "voice-multilingual-39"
         property bool voiceKeyVisible: true
 		property bool voicePushToTalkEnabled: false
         property bool voiceLiveTranscriptionEnabled: true
@@ -2426,7 +2453,7 @@ InputHandler {
 
 	function clearVoicePartial() {
 		if (voicePartial !== "")
-			MInputMethodQuick.sendPreedit("")
+			sendLogicalPreedit("")
 		voicePartial = ""
 	}
 
@@ -2435,7 +2462,7 @@ InputHandler {
 		if (text === "" || text === voicePartial)
 			return
 		voicePartial = text
-		MInputMethodQuick.sendPreedit(text)
+		sendLogicalPreedit(text)
 	}
 
 	function applyVoiceTranscription(transcription, showNoSpeech) {
@@ -2461,6 +2488,12 @@ InputHandler {
 		if (!keyboardSettings.voiceTypingEnabled || passwordField || voiceBusy
 				|| voiceRecording)
 			return
+		// The microphone key remains physically reachable underneath the held-123
+		// overlay. Voice state and Quick Settings share the top strip, so close
+		// that overlay for every voice entry point, not only its own menu item.
+		if (keyboard.layout && keyboard.layout.controlMode
+				&& keyboard.layout.hideControlStrip)
+			keyboard.layout.hideControlStrip()
 		voicePushToTalk = !!pushToTalk
 		voiceMessageTimer.stop()
 		voiceMessage = ""
@@ -2629,8 +2662,10 @@ InputHandler {
             readonly property bool emojiSearchVisible: keyboardLayout.emojiSearchMode
             readonly property bool symbolTabsVisible: keyboardLayout.extendedSymbolMode
             readonly property bool controlsVisible: keyboardLayout.controlMode
-			readonly property bool voiceStatusVisible: futoHandler.voiceRecording
-			        || futoHandler.voiceBusy || futoHandler.voiceMessage !== ""
+			readonly property bool voiceStatusVisible:
+			        !keyboardLayout.controlMode
+			        && (futoHandler.voiceRecording || futoHandler.voiceBusy
+			            || futoHandler.voiceMessage !== "")
 			readonly property bool credentialSaveVisible: false
 			// The live system clipboard is separate from FUTO's optional,
 			// persistent clipboard history. Password fields suppress predictions,
@@ -4880,7 +4915,7 @@ InputHandler {
             handled = true
         } else if (pressedKey.key === Qt.Key_Backspace && preedit !== "") {
             preedit = preedit.substr(0, preedit.length - 1)
-            MInputMethodQuick.sendPreedit(preedit)
+            sendLogicalPreedit(preedit)
             requestSuggestionsSoon()
             if (keyboard.shiftState !== ShiftState.LockedShift) {
                 keyboard.shiftState = preedit.length === 0
@@ -4909,7 +4944,7 @@ InputHandler {
                     preedit += pressedKey.text
                     if (keyboard.shiftState !== ShiftState.LockedShift)
                         keyboard.shiftState = ShiftState.NoShift
-                    MInputMethodQuick.sendPreedit(preedit)
+                    sendLogicalPreedit(preedit)
                     requestSuggestionsSoon()
                 }
                 handled = true
@@ -4955,7 +4990,7 @@ InputHandler {
             position++
             var word = MInputMethodQuick.surroundingText.substring(position, position + length)
             MInputMethodQuick.sendKey(Qt.Key_Backspace, 0, "\b", Maliit.KeyClick)
-            MInputMethodQuick.sendPreedit(word, undefined, -length, length)
+            sendLogicalPreedit(word, undefined, -length, length)
             preedit = word
             requestSuggestionsSoon()
             handled = true
@@ -5184,6 +5219,12 @@ InputHandler {
 			cursorMoveMode = false
 			return
 		}
+		// Quick Settings and cursor guidance share the top strip.  Once the
+		// deliberate Space hold becomes cursor control, close the overlay before
+		// showing the cursor status so the two interfaces cannot paint together.
+		if (keyboard.layout && keyboard.layout.controlMode
+				&& keyboard.layout.hideControlStrip)
+			keyboard.layout.hideControlStrip()
 		cursorMoveMode = true
 	}
 
@@ -5479,7 +5520,7 @@ InputHandler {
         var original = undoOriginalWord
         var replacementLength = undoReplacementWord.length
         MInputMethodQuick.sendKey(Qt.Key_Backspace, 0, "\b", Maliit.KeyClick)
-        MInputMethodQuick.sendPreedit(original, undefined, -replacementLength, replacementLength)
+        sendLogicalPreedit(original, undefined, -replacementLength, replacementLength)
         preedit = original
         clearUndoCorrection()
         requestSuggestionsSoon()
@@ -5541,7 +5582,7 @@ InputHandler {
             editorContextTimer.restart()
         } else {
             preedit += text
-            MInputMethodQuick.sendPreedit(preedit)
+            sendLogicalPreedit(preedit)
             requestSuggestionsSoon()
         }
     }
@@ -5733,7 +5774,7 @@ InputHandler {
         nextWordMode = false
         if (preedit !== "") {
             preedit = ""
-            MInputMethodQuick.sendPreedit("")
+            sendLogicalPreedit("")
             predictionModel.clear()
             suggestionsUpdated()
             return

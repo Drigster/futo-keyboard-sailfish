@@ -30,6 +30,12 @@ Column {
                 ? targetLayout.punctuationForLayout(value) : String(value)
     }
 
+    function persianDirectionCell(label, output, fallbackLabel) {
+        return targetLayout && targetLayout.usesPersianDigits
+                ? { "text": label, "output": output }
+                : { "text": fallbackLabel }
+    }
+
     // Keeps the leading and trailing keys in place and swaps only the two
     // blocks between them, so every row stays nine spans wide either way.
     function arrange(first, digits, symbols, last) {
@@ -80,7 +86,9 @@ Column {
         cells: numpad.secondPage ? [
             { "text": "Fn", "action": "desktopKeys" }, { "text": "`" },
             { "text": numpad.mark(";") }, { "text": "÷" }, { "text": "\\" },
-            { "text": "|" }, { "text": "¦" }, { "text": "¬" },
+			{ "text": "|" },
+			numpad.persianDirectionCell("|›", "\u200e", "¦"),
+			numpad.persianDirectionCell("‹|", "\u200f", "¬"),
 			{ "text": "", "action": "backspace" }
         ] : numpad.arrange(
             { "text": "{&=", "action": "extendedSymbols" },

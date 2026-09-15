@@ -69,8 +69,13 @@ Item {
                     FutoCharacterKey {
                         caption: String(cell.definition.text)
                         captionShifted: caption
+                        keyOutput: cell.definition.output !== undefined
+                                   ? String(cell.definition.output) : caption
+                        keyOutputShifted: keyOutput
                         symView: caption
+                        symViewOutput: keyOutput
                         symView2: caption
+                        symView2Output: keyOutput
                         secondaryHintEligible: false
                         letterAccents: ""
                         letterAccentsShifted: ""

@@ -2,9 +2,11 @@
 import QtQuick 2.0
 import Sailfish.Silica 1.0
 import Nemo.Configuration 1.0
+import com.meego.maliitquick 1.0
+import com.jolla.keyboard 1.0
 import ".."
 
-ContextAwareCommaKey {
+FutoCharacterKey {
 	id: commaKey
 
     property int symbolNumberLayout
@@ -19,21 +21,59 @@ ContextAwareCommaKey {
 	readonly property bool fallbackVoiceEnabled: voiceSettings.voiceTypingEnabled
 			&& !voiceSettings.voiceKeyVisible && voiceHandler
 			&& !voiceHandler.passwordField && !attributes.inSymView
-			&& String(caption) === ","
+			&& String(caption) === "," && !arabicComma
 	readonly property bool fallbackVoiceActive: fallbackVoiceEnabled
 			&& (voiceHandler.voiceRecording || voiceHandler.voiceBusy)
+	readonly property string contextCaption:
+			MInputMethodQuick.contentType === Maliit.UrlContentType ? "/"
+			: (MInputMethodQuick.contentType === Maliit.EmailContentType ? "@" : ",")
 	readonly property bool localizedComma: targetLayout
 			&& targetLayout.usesLocalizedDigits !== undefined
-			&& targetLayout.usesLocalizedDigits && String(caption) === ","
+			&& targetLayout.usesLocalizedDigits && contextCaption === ","
+	readonly property bool arabicComma: targetLayout
+			&& targetLayout.usesArabicDigits !== undefined
+			&& targetLayout.usesArabicDigits && contextCaption === ","
+	readonly property string localizedContextCaption:
+			localizedComma ? "،" : contextCaption
 	readonly property string inputText: attributes.inSymView && symView.length > 0
-			? (attributes.inSymView2 ? symView2 : symView)
-			: (localizedComma ? "،" : String(caption))
+			? (attributes.inSymView2 ? symView2Output : symViewOutput)
+			: keyOutput
 
-    symView: symbolNumberLayout >= 1 ? "0" : ","
-    symView2: ","
+	caption: localizedContextCaption
+	captionShifted: caption
+	keyOutput: caption
+	keyOutputShifted: keyOutput
+    symView: symbolNumberLayout >= 1 ? "0" : (localizedComma ? "،" : ",")
+	symViewOutput: symView
+    symView2: localizedComma ? "،" : ","
+	symView2Output: symView2
 	text: inputText
 	keyText: fallbackVoiceActive ? ""
 			 : inputText
+	implicitWidth: punctuationKeyWidth
+	fixedWidth: !splitActive
+	separator: SeparatorState.HiddenSeparator
+	separatedKeyCardEligible: false
+	secondaryHintEligible: arabicComma
+	secondarySymbol: arabicComma ? "\u064e" : ""
+	secondarySymbolCaption: arabicComma
+			? "\u202a\u00a0\u064e\u202c" : ""
+	secondarySymbolOutput: secondarySymbol
+	secondaryHintCaption: ""
+	secondaryHintParts: arabicComma ? ["\u0651", "\u064f", "\u064e"] : []
+	exactAlternativeMode: arabicComma
+	letterAlternativeChoices: [
+		{ "caption": "\u202a\u00a0\u0652\u202c", "output": "\u0652" },
+		{ "caption": "\u202a\u00a0\u0651\u202c", "output": "\u0651" },
+		{ "caption": "\u202a\u00a0\u0650\u202c", "output": "\u0650" },
+		{ "caption": "\u202a\u00a0\u064f\u202c", "output": "\u064f" },
+		{ "caption": "\u202a\u00a0\u064e\u202c", "output": "\u064e" },
+		{ "caption": "\u202a\u00a0\u064d\u202c", "output": "\u064d" },
+		{ "caption": "\u202a\u00a0\u064c\u202c", "output": "\u064c" },
+		{ "caption": "\u202a\u00a0\u064b\u202c", "output": "\u064b" }
+	]
+	letterAlternativeChoicesShifted: letterAlternativeChoices
+	popupAlways: arabicComma && !attributes.inSymView
 
 	ConfigurationGroup {
 		id: voiceSettings

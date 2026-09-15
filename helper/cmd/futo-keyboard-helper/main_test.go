@@ -888,6 +888,50 @@ func TestVoiceLanguageCodesIncludeSerbianScripts(t *testing.T) {
 	if got := voiceLanguageCodes("SR,SR_LATN,RU,EL"); got != "sr,ru,el" {
 		t.Fatalf("voiceLanguageCodes() = %q, want %q", got, "sr,ru,el")
 	}
+	if got := voiceLanguageCodes("AR,FA,HU,EN_IN"); got != "ar,fa,hu,en" {
+		t.Fatalf("voiceLanguageCodes() = %q, want %q", got, "ar,fa,hu,en")
+	}
+}
+
+func TestVoiceModelCatalog(t *testing.T) {
+	want := map[string]struct {
+		englishOnly bool
+		tier        int
+	}{
+		"voice-english-39":       {true, 39},
+		"voice-english-74":       {true, 74},
+		"voice-english-244":      {true, 244},
+		"voice-multilingual-39":  {false, 39},
+		"voice-multilingual-74":  {false, 74},
+		"voice-multilingual-244": {false, 244},
+	}
+	if len(voiceModelCatalog) != len(want) {
+		t.Fatalf("voice model count = %d, want %d", len(voiceModelCatalog), len(want))
+	}
+	for id, expected := range want {
+		model, ok := voiceModelByID(id)
+		if !ok || model.EnglishOnly != expected.englishOnly || model.Tier != expected.tier {
+			t.Fatalf("voiceModelByID(%q) = %#v, %v", id, model, ok)
+		}
+	}
+	if _, ok := voiceModelByID("voice-unknown"); ok {
+		t.Fatal("unknown voice model was accepted")
+	}
+}
+
+func TestVoiceTranscriptionTimeoutScalesWithModel(t *testing.T) {
+	if got := voiceTranscriptionTimeout(20*time.Second, 39); got != 20*time.Second {
+		t.Fatalf("39M partial timeout = %v", got)
+	}
+	if got := voiceTranscriptionTimeout(20*time.Second, 74); got != 45*time.Second {
+		t.Fatalf("74M partial timeout = %v", got)
+	}
+	if got := voiceTranscriptionTimeout(20*time.Second, 244); got != 120*time.Second {
+		t.Fatalf("244M partial timeout = %v", got)
+	}
+	if got := voiceTranscriptionTimeout(90*time.Second, 244); got != 300*time.Second {
+		t.Fatalf("244M final timeout = %v", got)
+	}
 }
 
 func TestCompoundPartsHandlesUnicodeApostrophe(t *testing.T) {

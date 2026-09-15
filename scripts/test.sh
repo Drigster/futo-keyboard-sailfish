@@ -155,7 +155,15 @@ assert(layoutData.letter(13, 2, 0) === "ذ", "Arabic row is incomplete")
 assert(layoutData.letter(19, 2, 0) === "ѕ"
        && layoutData.letter(19, 2, 7) === "ђ",
        "Serbian Cyrillic does not match FUTO South Slavic")
-assert(layoutData.letter(20, 2, 2) === "ژ", "Persian row is incomplete")
+assert(layoutData.letter(20, 2, 2) === "ز"
+       && layoutData.alternatives(20, "ز", "FA", false).indexOf("ژ") >= 0,
+       "Persian ژ must be available from ز")
+assert(layoutData.keyKind(13, 2, 0) === "character"
+       && layoutData.keyKind(13, 2, 10) === "delete",
+       "Arabic must not show Shift")
+assert(layoutData.keyKind(20, 2, 0) === "character"
+       && layoutData.keyKind(20, 2, 9) === "delete",
+       "Persian must not show Shift")
 assert(layoutData.shifted("ς", 14) === "ς", "Greek final sigma must not shift")
 assert(layoutData.alternatives(15, "е", "RU", false) === "ё",
        "Russian ё alternative is missing")
@@ -322,6 +330,14 @@ grep -Fq 'spaceKey.finishLanguageMode(!spaceKey.languageAbandoned)' \
     "$ROOT/layouts/FutoSpacebarKey.qml"
 grep -Fq 'label: qsTr("Hold Space")' "$ROOT/qml/FutoGesturesPage.qml"
 grep -Fq 'MenuItem { text: qsTr("Switch language") }' "$ROOT/qml/FutoGesturesPage.qml"
+grep -Fq 'MenuItem { text: qsTr("Switch language & move the cursor") }' \
+    "$ROOT/qml/FutoGesturesPage.qml"
+grep -Fq 'MenuItem { text: qsTr("Move the cursor & switch language") }' \
+    "$ROOT/qml/FutoGesturesPage.qml"
+grep -Fq 'readonly property bool languageOnLeft: splitHoldAction && holdAction === 3' \
+    "$ROOT/layouts/FutoSpacebarKey.qml"
+grep -Fq 'readonly property bool cursorOnLeft: splitHoldAction && holdAction === 4' \
+    "$ROOT/layouts/FutoSpacebarKey.qml"
 grep -Fq 'property int spacebarHoldAction: -1' "$ROOT/qml/FutoSettingsPage.qml"
 # The 123 and {&= pages keep the cursor pad whatever the setting says.
 grep -Fq 'readonly property bool cursorControlOffered: !onLetterPage || holdAction === 1' \
@@ -362,6 +378,13 @@ grep -Fq 'property bool cursorSelectionMode: false' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'cursorSelectionMode ? Qt.ShiftModifier : 0' \
     "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'keyboard.layout.hideControlStrip()' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq '&& (futoHandler.voiceRecording || futoHandler.voiceBusy' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'page.openVoiceDownloads(page.selectedVoiceModelId(), true)' \
+    "$ROOT/qml/FutoVoicePage.qml"
+grep -Fq 'settings.voiceTypingEnabled = true' "$ROOT/qml/FutoVoicePage.qml"
 grep -Fq 'Drag finger to select text' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'usesPersianDigits ? "۰۱۲۳۴۵۶۷۸۹" : "٠١٢٣٤٥٦٧٨٩"' \
@@ -374,10 +397,30 @@ grep -Fq 'localizedAlternatives ? localizedDigits.charAt(1)' \
     "$ROOT/layouts/FutoCharacterKey.qml"
 grep -Fq 'insertWordCharacter("\u200c")' "$ROOT/layouts/FutoShiftKey.qml"
 grep -Fq 'character === "\u200c"' "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'return rightToLeftPreedit && text !== "" ? "\u200f" + text : text' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'sendLogicalPreedit(preedit)' "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq '"caption": "\u202a\u00a0\u064c\u202c", "output": "\u064c"' \
+    "$ROOT/layouts/FutoPersianJoinerKey.qml"
+grep -Fq '{ "caption": "\u202a\u00a0\u0652\u202c", "output": "\u0652" }' \
+    "$ROOT/layouts/FutoCommaKey.qml"
+grep -Fq 'implicitWidth: active ? punctuationKeyWidth : 0' \
+    "$ROOT/layouts/FutoPersianJoinerKey.qml"
+grep -Fq 'secondaryHintParts: ["\u0651", "\u064f", "\u064e"]' \
+    "$ROOT/layouts/FutoPersianJoinerKey.qml"
+grep -Fq 'secondaryHintParts: arabicComma ? ["\u0651", "\u064f", "\u064e"] : []' \
+    "$ROOT/layouts/FutoCommaKey.qml"
+grep -Fq 'text: "\u00a0" + String(modelData)' \
+    "$ROOT/layouts/FutoCharacterKey.qml"
+grep -Fq 'horizontalAlignment: Text.AlignLeft' \
+    "$ROOT/qml/FutoContentListPage.qml"
+grep -Fq 'LICENSES/ALINA-PERSIAN-KEYBOARD-BSD.txt' "$ROOT/UPSTREAM.md"
 grep -Fq 'argv[i] === "--search-only"' \
     "$ROOT/scripts/generate-full-emoji-set.js"
 grep -Fq 'targetLayout.numberPageLabel()' \
     "$ROOT/layouts/FutoSymbolKey.qml"
+grep -Fq 'readonly property real splitNeutralFraction: 0.15' \
+    "$ROOT/layouts/FutoSpacebarKey.qml"
 grep -Fq 'targetLayout.letterPageLabel()' \
     "$ROOT/layouts/FutoSymbolKey.qml"
 grep -Fq '"?r=" + revision' \
@@ -404,6 +447,11 @@ grep -Fq 'layouts/FutoEmojiPanel.qml' "$ROOT/packaging/Makefile"
 grep -Fq 'signalsEnabled: true' "$ROOT/qml/FutoEmojiSettingsPage.qml"
 grep -Fq 'function contentChanged(packId, state)' \
     "$ROOT/qml/FutoEmojiSettingsPage.qml"
+grep -Fq 'installed[String(items[i].id)] = !!items[i].installed' \
+    "$ROOT/qml/FutoVoicePage.qml"
+grep -Fq 'qsTr("No models installed")' "$ROOT/qml/FutoVoicePage.qml"
+grep -Fq 'Voice typing needs an offline voice model.' \
+    "$ROOT/qml/FutoVoicePage.qml"
 grep -Fq 'status === PageStatus.Active' \
     "$ROOT/qml/FutoEmojiSettingsPage.qml"
 grep -Fq 'Sailfish OS (built-in)' "$ROOT/qml/FutoEmojiSettingsPage.qml"
@@ -575,6 +623,15 @@ grep -Fq '&& targetLayout.topRowSymbolPage)' "$ROOT/layouts/FutoLetterRow.qml"
 grep -Fq '&& targetLayout.topRowSecondSymbolPage)' "$ROOT/layouts/FutoLetterRow.qml"
 grep -Fq 'symView: "1"; symView2: "¹"' \
     "$ROOT/layouts/FutoQwertyLayout.qml"
+grep -Fq 'persianDirectionCell("|›", "\u200e", "¦")' \
+    "$ROOT/layouts/FutoNumpadLayout.qml"
+grep -Fq 'persianDirectionCell("‹|", "\u200f", "¬")' \
+    "$ROOT/layouts/FutoNumpadLayout.qml"
+grep -Fq 'symView2Output: keyOutput' "$ROOT/layouts/FutoNumpadRow.qml"
+grep -Fq '{ caption: "|›", output: "\u200e" }' \
+    "$ROOT/layouts/FutoLetterLayouts.js"
+grep -Fq '{ caption: "‹|", output: "\u200f" }' \
+    "$ROOT/layouts/FutoLetterLayouts.js"
 ! grep -Fq 'sendCommit(word + " ")' "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'property bool swipeTypingEnabled: false' \
     "$ROOT/qml/FutoGesturesPage.qml"

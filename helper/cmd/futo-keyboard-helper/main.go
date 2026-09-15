@@ -3407,11 +3407,15 @@ func (service *service) PlayKeySound(kind string, volume int32) (bool, *dbus.Err
 
 func voiceLanguageCodes(languagesCSV string) string {
 	mapping := map[string]string{
-		"EN": "en", "EN_GB": "en", "NL": "nl", "TR": "tr", "DE": "de",
-		"FR": "fr", "ES": "es", "IT": "it", "PT_BR": "pt", "PT_PT": "pt",
+		"EN": "en", "EN_GB": "en", "EN_IN": "en", "NL": "nl", "NL_BE": "nl",
+		"TR": "tr", "DE": "de", "DE_CH": "de", "FR": "fr", "FR_CA": "fr",
+		"FR_CH": "fr", "ES": "es", "ES_419": "es", "ES_US": "es", "IT": "it",
+		"IT_CH": "it", "PT_BR": "pt", "PT_PT": "pt",
 		"SV": "sv", "NB": "no", "DA": "da", "FI": "fi", "PL": "pl",
-		"CS": "cs", "RO": "ro", "SL": "sl", "HR": "hr", "LV": "lv", "LT": "lt",
+		"CS": "cs", "RO": "ro", "SL": "sl", "HR": "hr", "HU": "hu",
+		"LV": "lv", "LT": "lt",
 		"EL": "el", "RU": "ru", "SR": "sr", "SR_LATN": "sr",
+		"AR": "ar", "FA": "fa",
 	}
 	seen := make(map[string]bool)
 	result := make([]string, 0, 4)
@@ -3471,12 +3475,14 @@ func (service *service) VoiceStatus() (string, *dbus.Error) {
 	service.voiceMu.Unlock()
 	_, parecErr := os.Stat("/usr/bin/parec")
 	inputSource := pulseAudioInputSource()
+	model, modelPath := resolvedVoiceModel()
 	status := map[string]interface{}{
-		"available":    regularFileAvailable(voicePath) && resolvedVoiceModelPath() != "" && parecErr == nil && inputSource != "",
+		"available":    regularFileAvailable(voicePath) && modelPath != "" && parecErr == nil && inputSource != "",
 		"recording":    recording,
 		"transcribing": transcribing,
 		"offline":      true,
-		"model":        "FUTO Multilingual-39",
+		"model":        model.Name,
+		"modelId":      model.ID,
 		"source":       inputSource,
 	}
 	data, err := json.Marshal(status)
@@ -3488,7 +3494,8 @@ func (service *service) VoiceStatus() (string, *dbus.Error) {
 
 func (service *service) StartVoiceInput(languagesCSV string) (bool, *dbus.Error) {
 	inputSource := pulseAudioInputSource()
-	if !regularFileAvailable(voicePath) || resolvedVoiceModelPath() == "" ||
+	_, modelPath := resolvedVoiceModel()
+	if !regularFileAvailable(voicePath) || modelPath == "" ||
 		!regularFileAvailable("/usr/bin/parec") || inputSource == "" {
 		return false, nil
 	}
@@ -3653,14 +3660,19 @@ func (service *service) runVoiceTranscription(path, languagesCSV string,
 	timeout time.Duration) (string, error) {
 	service.voiceWorkMu.Lock()
 	defer service.voiceWorkMu.Unlock()
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
-	defer cancel()
-	modelPath := resolvedVoiceModelPath()
+	model, modelPath := resolvedVoiceModel()
 	if modelPath == "" {
 		return "", errors.New("offline voice model is not installed")
 	}
+	timeout = voiceTranscriptionTimeout(timeout, model.Tier)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	languages := voiceLanguageCodes(languagesCSV)
+	if model.EnglishOnly {
+		languages = "en"
+	}
 	command := exec.CommandContext(ctx, voicePath, modelPath,
-		path, voiceLanguageCodes(languagesCSV))
+		path, languages)
 	command.Stderr = io.Discard
 	service.voiceMu.Lock()
 	if service.voiceTranscription != nil {
@@ -3688,6 +3700,24 @@ func (service *service) runVoiceTranscription(path, languagesCSV string,
 		return "", errors.New("voice transcription was too long")
 	}
 	return text, nil
+}
+
+func voiceTranscriptionTimeout(requested time.Duration, modelTier int) time.Duration {
+	partial := requested <= 20*time.Second
+	switch modelTier {
+	case 244:
+		if partial {
+			return 120 * time.Second
+		}
+		return 300 * time.Second
+	case 74:
+		if partial {
+			return 45 * time.Second
+		}
+		return 150 * time.Second
+	default:
+		return requested
+	}
 }
 
 func (service *service) finishVoiceInput(languagesCSV string) (string, error) {

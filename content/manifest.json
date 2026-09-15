@@ -48,14 +48,97 @@
     {
       "id": "voice-multilingual-39",
       "kind": "voice",
-      "name": "FUTO Multilingual-39",
+      "name": "Multilingual - Default, fastest",
       "version": "0.4.0-1",
-      "archive": "futo-content-voice-multilingual-39-0.4.0-1.tar.gz",
-      "sha256": "12769b6271efdfa304e953a7a28bd7a976fb12fe4feeb60c1c5d076b69ff359c",
-      "downloadBytes": 38875718,
+      "archive": "voice-input-multilingual-39.bin",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/voice-input-multilingual-39.bin",
+      "fallbackUrl": "https://keyboard.futo.org/voice-input-multilingual-39.bin",
+      "rawFile": true,
+      "sha256": "07aa4d514144deacf5ffec5cacb36c93dee272fda9e64ac33a801f8cd5cbd953",
+      "downloadBytes": 43537450,
       "installedBytes": 43537450,
       "paths": [
         "voice/tiny_acft_q8_0.bin"
+      ]
+    },
+    {
+      "id": "voice-english-39",
+      "kind": "voice",
+      "name": "English - Fastest",
+      "version": "upstream-4b5480aa",
+      "archive": "voice-input-english-39.bin",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/voice-input-english-39.bin",
+      "fallbackUrl": "https://keyboard.futo.org/voice-input-english-39.bin",
+      "rawFile": true,
+      "sha256": "4b5480aa1b14a7efc5b578ef176510970a898049671c3cd237285b3e3f6bfbfc",
+      "downloadBytes": 43550795,
+      "installedBytes": 43550795,
+      "paths": [
+        "voice/english-39.bin"
+      ]
+    },
+    {
+      "id": "voice-english-74",
+      "kind": "voice",
+      "name": "English - Slower, more accurate",
+      "version": "upstream-e9b4b7b8",
+      "archive": "voice-input-english-74.bin",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/voice-input-english-74.bin",
+      "fallbackUrl": "https://keyboard.futo.org/voice-input-english-74.bin",
+      "rawFile": true,
+      "sha256": "e9b4b7b81b8a28769e8aa9962aa39bb9f21b622cf6a63982e93f065ed5caf1c8",
+      "downloadBytes": 81781811,
+      "installedBytes": 81781811,
+      "paths": [
+        "voice/english-74.bin"
+      ]
+    },
+    {
+      "id": "voice-english-244",
+      "kind": "voice",
+      "name": "English - Slowest, most accurate",
+      "version": "upstream-58fbe949",
+      "archive": "voice-input-english-244.bin",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/voice-input-english-244.bin",
+      "fallbackUrl": "https://keyboard.futo.org/voice-input-english-244.bin",
+      "rawFile": true,
+      "sha256": "58fbe949992dafed917590d58bc12ca577b08b9957f0b3e0d7ee71b64bed3aa8",
+      "downloadBytes": 264477561,
+      "installedBytes": 264477561,
+      "paths": [
+        "voice/english-244.bin"
+      ]
+    },
+    {
+      "id": "voice-multilingual-74",
+      "kind": "voice",
+      "name": "Multilingual - Slower, more accurate",
+      "version": "upstream-e44f352c",
+      "archive": "voice-input-multilingual-74.bin",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/voice-input-multilingual-74.bin",
+      "fallbackUrl": "https://keyboard.futo.org/voice-input-multilingual-74.bin",
+      "rawFile": true,
+      "sha256": "e44f352c9aa2c3609dece20c733c4ad4a75c28cd9ab07d005383df55fa96efc4",
+      "downloadBytes": 81768602,
+      "installedBytes": 81768602,
+      "paths": [
+        "voice/multilingual-74.bin"
+      ]
+    },
+    {
+      "id": "voice-multilingual-244",
+      "kind": "voice",
+      "name": "Multilingual - Slowest, most accurate",
+      "version": "upstream-15ef2554",
+      "archive": "voice-input-multilingual-244.bin",
+      "url": "https://github.com/HtheB/futo-keyboard-sailfish/releases/download/v0.4.0/voice-input-multilingual-244.bin",
+      "fallbackUrl": "https://keyboard.futo.org/voice-input-multilingual-244.bin",
+      "rawFile": true,
+      "sha256": "15ef255465a6dc582ecf1ec651a4618c7ee2c18c05570bbe46493d248d465ac4",
+      "downloadBytes": 264464624,
+      "installedBytes": 264464624,
+      "paths": [
+        "voice/multilingual-244.bin"
       ]
     },
     {

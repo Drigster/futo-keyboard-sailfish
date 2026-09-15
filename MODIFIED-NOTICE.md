@@ -33,6 +33,11 @@ session. The bundled
 emoji artwork is separately attributed and licensed in
 `LICENSES/EMOJI-ATTRIBUTION.md`.
 
+Later versions make all six official English and multilingual FUTO Voice
+models available as optional verified downloads. The selected model is loaded
+by the isolated voice worker; English models explicitly constrain recognition
+to English, while multilingual models follow the active keyboard languages.
+
 Release 21 corrects automatic capitalization between consecutive swipe words
 and adds a live highlighted path above the letter keys during a swipe.
 
@@ -119,3 +124,9 @@ choice. Explicit display names cover locales missing from Sailfish's Qt 5.6
 locale database. Unmodified OFL-licensed Noto fonts provide the Tifinagh,
 Sinhala, Myanmar, Khmer, Tibetan and extended Latin glyphs absent from the
 base device.
+
+Arabic and Persian integration also supplies localized punctuation, native
+Arabic-script preedit direction, a Persian ZWNJ/ZWJ key, common diacritics and
+the conventional long-press placement of Persian Zhe. The joiner and diacritic
+behavior follows the BSD-licensed Persian Keyboard 0.6 Sailfish layout by Ali
+Najafi and Sepehr Noori; the full notice is included under `LICENSES/`.

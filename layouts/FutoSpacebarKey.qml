@@ -44,13 +44,35 @@ SpacebarKey {
         var configured = Number(gestureSettings.spacebarHoldAction)
         if (!isFinite(configured) || configured < 0)
             return gestureSettings.spacebarCursorControlEnabled ? 1 : 0
-        return Math.max(0, Math.min(2, Math.round(configured)))
+        return Math.max(0, Math.min(4, Math.round(configured)))
     }
-    readonly property bool languageSwitchOffered: onLetterPage && holdAction === 2
+    readonly property bool splitHoldAction: onLetterPage && holdAction >= 3
+    readonly property bool languageOnLeft: splitHoldAction && holdAction === 3
+    readonly property bool cursorOnLeft: splitHoldAction && holdAction === 4
+    readonly property bool languageSwitchOffered: onLetterPage
+            && (holdAction === 2 || splitHoldAction)
             && ownerLayout && ownerLayout.languageSwitchEntries !== undefined
     readonly property bool languageSwitchArmed: languageSwitchOffered
             && ownerLayout.languageSwitchEntries().length > 1
     readonly property bool cursorControlOffered: !onLetterPage || holdAction === 1
+            || splitHoldAction
+    // Combined actions deliberately leave the middle 15% unassigned.  A hold
+    // close to the dividing line must not unexpectedly choose the other tool.
+    readonly property real splitNeutralFraction: 0.15
+    readonly property bool pressStartsInLeftActionZone:
+            pressX < width * (0.5 - splitNeutralFraction / 2)
+    readonly property bool pressStartsInRightActionZone:
+            pressX > width * (0.5 + splitNeutralFraction / 2)
+    readonly property bool pressStartsInNeutralZone: splitHoldAction
+            && !pressStartsInLeftActionZone && !pressStartsInRightActionZone
+    readonly property bool pressedLanguageAction: languageSwitchArmed
+            && (!splitHoldAction
+                || (languageOnLeft ? pressStartsInLeftActionZone
+                                   : pressStartsInRightActionZone))
+    readonly property bool pressedCursorAction: cursorControlOffered
+            && (!splitHoldAction
+                || (cursorOnLeft ? pressStartsInLeftActionZone
+                                 : pressStartsInRightActionZone))
 
     readonly property bool hintsVisible: visualSettings.secondarySymbolsEnabled
             && hintEligible && !incognitoIndicatorVisible
@@ -161,15 +183,23 @@ SpacebarKey {
 		interval: 240
 		repeat: false
 		onTriggered: {
-			if (spaceKey.languageSwitchArmed) {
+			// A deliberate hold in the neutral centre consumes the hold without
+			// choosing either split action. Quick taps there remain ordinary Space.
+			if (spaceKey.pressStartsInNeutralZone) {
+				spaceKey.gestureMoved = true
+				return
+			}
+			if (spaceKey.pressedLanguageAction) {
 				spaceKey.activateLanguageMode()
 				spaceKey.updateLanguageSelection(spaceMouseArea.mouseX,
 				                                 spaceMouseArea.mouseY)
 				return
 			}
-			spaceKey.activateCursorMode()
-			spaceKey.updateCursorPosition(spaceMouseArea.mouseX,
-			                              spaceMouseArea.mouseY)
+			if (spaceKey.pressedCursorAction) {
+				spaceKey.activateCursorMode()
+				spaceKey.updateCursorPosition(spaceMouseArea.mouseX,
+				                              spaceMouseArea.mouseY)
+			}
 		}
 	}
 
@@ -190,15 +220,14 @@ SpacebarKey {
     // What holding this particular Space does. The cap is inset from the key
     // by paddingMedium, so the mark clears that before finding its corner.
     Icon {
-        anchors {
-            top: parent.top
-            right: parent.right
-            topMargin: Theme.paddingMedium + Math.round(Theme.paddingSmall / 2)
-            rightMargin: Theme.paddingMedium + Theme.paddingSmall
-                         + spaceKey.rightPadding
-        }
+		readonly property bool onLeft: spaceKey.languageOnLeft
+		y: Theme.paddingMedium + Math.round(Theme.paddingSmall / 2)
         width: Theme.iconSizeExtraSmall
         height: width
+		x: onLeft
+		   ? Theme.paddingMedium + Theme.paddingSmall + spaceKey.leftPadding
+		   : parent.width - width - Theme.paddingMedium - Theme.paddingSmall
+		     - spaceKey.rightPadding
         source: "image://theme/icon-m-region"
         color: spaceKey.palette.primaryColor
         opacity: 0.72
@@ -208,20 +237,18 @@ SpacebarKey {
     // A drawn I-beam rather than a bundled icon: three rectangles need no
     // artwork, and they follow the key palette like every other mark here.
     Item {
-        anchors {
-            top: parent.top
-            right: parent.right
-            topMargin: Theme.paddingMedium + Math.round(Theme.paddingSmall / 2)
-            rightMargin: Theme.paddingMedium + Theme.paddingSmall
-                         + spaceKey.rightPadding
-        }
+		readonly property bool onLeft: spaceKey.cursorOnLeft
+		y: Theme.paddingMedium + Math.round(Theme.paddingSmall / 2)
         // Drawn at the size the comma key's microphone and the dot key's
         // ",!?" are drawn at: a fraction of the key's own text, not an icon.
         height: Math.max(Theme.dp(8), Math.round(Theme.fontSizeSmall * 0.6))
         width: Math.round(height * 0.5)
+		x: onLeft
+		   ? Theme.paddingMedium + Theme.paddingSmall + spaceKey.leftPadding
+		   : parent.width - width - Theme.paddingMedium - Theme.paddingSmall
+		     - spaceKey.rightPadding
         opacity: 0.72
-        visible: spaceKey.hintsVisible && !spaceKey.languageSwitchArmed
-                 && spaceKey.cursorControlOffered
+        visible: spaceKey.hintsVisible && spaceKey.cursorControlOffered
 
         Rectangle {
             anchors.horizontalCenter: parent.horizontalCenter
@@ -424,8 +451,7 @@ SpacebarKey {
 			// Keep the existing immediate horizontal gesture. With the chooser
 			// on this key a sideways drag must wait for the hold instead, or it
 			// would take the gesture away before the chooser could open.
-			if (!spaceKey.cursorMode && !spaceKey.languageSwitchArmed
-					&& spaceKey.cursorControlOffered
+			if (!spaceKey.cursorMode && spaceKey.pressedCursorAction
 					&& Math.abs(horizontalDistance) >= horizontalThreshold)
 				spaceKey.activateCursorMode()
 			spaceKey.updateCursorPosition(mouse.x, mouse.y)

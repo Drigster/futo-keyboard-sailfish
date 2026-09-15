@@ -1,6 +1,7 @@
 /* Bottom-left letters/symbols switch with a long-hold action strip. */
 import QtQuick 2.0
 import Sailfish.Silica 1.0
+import com.jolla.keyboard 1.0
 import ".."
 
 SymbolKey {
@@ -43,10 +44,17 @@ SymbolKey {
     function triggerSymbolSwitch() {
         if (!keyboard.inputHandler)
             return
+        var returningToLetters = attributes.inSymView
         keyboard.inputHandler._handleKeyPress(symbolKey)
         keyboard.inputHandler._handleKeyClick(symbolKey)
         symbolKey.clicked()
         keyboard.inputHandler._handleKeyRelease()
+        if (returningToLetters && symbolKey.targetLayout
+                && symbolKey.targetLayout.usesLocalizedDigits) {
+            keyboard.inSymView2 = false
+            if (keyboard.shiftState !== ShiftState.LockedShift)
+                keyboard.shiftState = ShiftState.NoShift
+        }
     }
 
     Timer {

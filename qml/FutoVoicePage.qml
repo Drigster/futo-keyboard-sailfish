@@ -8,12 +8,25 @@ Page {
     allowedOrientations: Orientation.All
     property bool voiceContentReady: false
     property bool voiceModelInstalled: false
+    property bool anyVoiceModelInstalled: false
     property bool pendingVoiceDownloads: false
+    property string pendingVoicePackId: ""
+    property string requestedVoiceModel: ""
+    property bool enableVoiceAfterDownload: false
+    property bool voiceSelectionReady: false
+    property bool syncingVoiceSelection: false
+    property var installedVoiceModels: ({})
+    readonly property var voiceModelIds: [
+        "voice-english-39", "voice-english-74", "voice-english-244",
+        "voice-multilingual-39", "voice-multilingual-74", "voice-multilingual-244"
+    ]
 
     onStatusChanged: {
-        if (status === PageStatus.Active && pendingVoiceDownloads
-                && !voiceDownloadNavigation.running)
-            voiceDownloadNavigation.start()
+        if (status === PageStatus.Active) {
+            refreshVoiceContent()
+            if (pendingVoiceDownloads && !voiceDownloadNavigation.running)
+                voiceDownloadNavigation.start()
+        }
     }
 
     Timer {
@@ -25,9 +38,73 @@ Page {
             pageStack.push(Qt.resolvedUrl("FutoContentListPage.qml"), {
                 "packKind": "voice",
                 "pageTitle": qsTr("Offline voice"),
-                "requestedPackId": "voice-multilingual-39"
+                "requestedPackId": page.pendingVoicePackId
             })
         }
+    }
+
+    function voiceModelName(modelId) {
+        if (modelId === "voice-english-39") return qsTr("English - Fastest")
+        if (modelId === "voice-english-74") return qsTr("English - Slower, more accurate")
+        if (modelId === "voice-english-244") return qsTr("English - Slowest, most accurate")
+        if (modelId === "voice-multilingual-74") return qsTr("Multilingual - Slower, more accurate")
+        if (modelId === "voice-multilingual-244") return qsTr("Multilingual - Slowest, most accurate")
+        return qsTr("Multilingual - Default, fastest")
+    }
+
+    function voiceModelIndex(modelId) {
+        for (var i = 0; i < voiceModelIds.length; ++i) {
+            if (voiceModelIds[i] === modelId)
+                return i
+        }
+        return 3
+    }
+
+    function selectedVoiceModelId() {
+        var index = voiceModelIndex(settings.voiceModel)
+        return voiceModelIds[index]
+    }
+
+    function voiceModelDescription(modelId) {
+        var english = modelId.indexOf("voice-english-") === 0
+        var size = modelId.slice(modelId.lastIndexOf("-") + 1)
+        var speed = size === "39" ? qsTr("Fastest and smallest")
+                  : size === "74" ? qsTr("More accurate, but slower")
+                  : qsTr("Most accurate and slowest")
+        return english
+                ? qsTr("%1. English speech only.").arg(speed)
+                : qsTr("%1. Supports multiple languages.").arg(speed)
+    }
+
+    function firstInstalledVoiceModel() {
+        var preferred = [
+            "voice-multilingual-39", "voice-multilingual-74",
+            "voice-multilingual-244", "voice-english-39",
+            "voice-english-74", "voice-english-244"
+        ]
+        for (var i = 0; i < preferred.length; ++i) {
+            if (installedVoiceModels[preferred[i]])
+                return preferred[i]
+        }
+        return ""
+    }
+
+    function syncVoiceCombo(modelId) {
+        syncingVoiceSelection = true
+        voiceModelCombo.currentIndex = voiceModelIndex(modelId)
+        syncingVoiceSelection = false
+    }
+
+    function chooseVoiceModel(modelId) {
+        if (!voiceSelectionReady || syncingVoiceSelection)
+            return
+        if (installedVoiceModels[modelId]) {
+            settings.voiceModel = modelId
+            voiceModelInstalled = true
+            return
+        }
+        syncVoiceCombo(settings.voiceModel)
+        openVoiceDownloads(modelId, false)
     }
 
     function refreshVoiceContent() {
@@ -40,28 +117,54 @@ Page {
             } catch (error) {
                 return
             }
-            var installed = false
+            var installed = {}
             var items = result.items || []
             for (var i = 0; i < items.length; ++i) {
-                if (String(items[i].id) === "voice-multilingual-39") {
-                    installed = !!items[i].installed
-                    break
+                if (String(items[i].kind) === "voice")
+                    installed[String(items[i].id)] = !!items[i].installed
+            }
+            page.installedVoiceModels = installed
+            page.anyVoiceModelInstalled = page.firstInstalledVoiceModel() !== ""
+            if (page.requestedVoiceModel !== ""
+                    && installed[page.requestedVoiceModel]) {
+                settings.voiceModel = page.requestedVoiceModel
+                page.requestedVoiceModel = ""
+            }
+            var currentModel = page.selectedVoiceModelId()
+            if (!installed[currentModel]) {
+                var fallback = page.firstInstalledVoiceModel()
+                if (fallback !== "") {
+                    settings.voiceModel = fallback
+                    currentModel = fallback
                 }
             }
-            page.voiceModelInstalled = installed
+            page.voiceModelInstalled = !!installed[currentModel]
+            if (page.enableVoiceAfterDownload && page.voiceModelInstalled) {
+                settings.voiceTypingEnabled = true
+                page.requestedVoiceModel = ""
+                page.enableVoiceAfterDownload = false
+            }
             page.voiceContentReady = true
-            if (!installed && settings.voiceTypingEnabled)
+            page.syncVoiceCombo(currentModel)
+            page.voiceSelectionReady = true
+            if (!page.voiceModelInstalled && settings.voiceTypingEnabled)
                 settings.voiceTypingEnabled = false
         })
     }
 
-    function openVoiceDownloads() {
+    function openVoiceDownloads(modelId, enableAfterDownload) {
         var dialog = pageStack.push(Qt.resolvedUrl("FutoContentRequiredDialog.qml"), {
             "contentName": qsTr("offline voice model"),
-            "explanation": qsTr("Voice typing needs the FUTO Multilingual-39 model. "
-                                + "Open the Offline voice downloader to install it?")
+            "explanation": enableAfterDownload
+                    ? qsTr("Voice typing needs an offline voice model. "
+                           + "Open the Offline voice downloader to install one?")
+                    : qsTr("This voice model is not installed. "
+                           + "Open the Offline voice downloader to install it?")
         })
         dialog.accepted.connect(function() {
+            page.requestedVoiceModel = modelId
+            page.enableVoiceAfterDownload = !!enableAfterDownload
+            page.pendingVoicePackId = modelId
             page.pendingVoiceDownloads = true
         })
     }
@@ -70,6 +173,7 @@ Page {
         id: settings
         path: "/sailfish/text_input/futo_keyboard"
         property bool voiceTypingEnabled: false
+        property string voiceModel: "voice-multilingual-39"
         property bool voiceKeyVisible: true
 		property bool voicePushToTalkEnabled: false
         property bool voiceLiveTranscriptionEnabled: true
@@ -87,7 +191,7 @@ Page {
         watchServiceStatus: true
 
         function contentChanged(packId, state) {
-            if (String(packId) === "voice-multilingual-39")
+            if (String(packId).indexOf("voice-") === 0)
                 page.refreshVoiceContent()
         }
 
@@ -130,10 +234,44 @@ Page {
                 description: qsTr("Speech recognition remains completely on this phone.")
                 onClicked: {
                     if (!checked && !page.voiceModelInstalled)
-                        page.openVoiceDownloads()
+                        page.openVoiceDownloads(page.selectedVoiceModelId(), true)
                     else
                         settings.voiceTypingEnabled = !checked
                 }
+            }
+
+            ComboBox {
+                id: voiceModelCombo
+                width: parent.width
+                enabled: page.voiceContentReady
+                label: qsTr("Voice model")
+                value: page.anyVoiceModelInstalled
+                       ? page.voiceModelName(page.selectedVoiceModelId())
+                       : qsTr("No models installed")
+                currentIndex: page.voiceModelIndex(settings.voiceModel)
+                onCurrentIndexChanged: {
+                    if (page.voiceSelectionReady && !page.syncingVoiceSelection)
+                        page.chooseVoiceModel(page.voiceModelIds[currentIndex])
+                }
+                menu: ContextMenu {
+                    MenuItem { text: qsTr("English - Fastest") }
+                    MenuItem { text: qsTr("English - Slower, more accurate") }
+                    MenuItem { text: qsTr("English - Slowest, most accurate") }
+                    MenuItem { text: qsTr("Multilingual - Default, fastest") }
+                    MenuItem { text: qsTr("Multilingual - Slower, more accurate") }
+                    MenuItem { text: qsTr("Multilingual - Slowest, most accurate") }
+                }
+            }
+
+            Label {
+                x: Theme.horizontalPageMargin
+                width: parent.width - 2 * x
+                wrapMode: Text.Wrap
+                color: Theme.secondaryColor
+                font.pixelSize: Theme.fontSizeSmall
+                text: page.anyVoiceModelInstalled
+                      ? page.voiceModelDescription(page.selectedVoiceModelId())
+                      : qsTr("Download a voice model to use voice typing.")
             }
 
             TextSwitch {
@@ -214,12 +352,17 @@ Page {
                 wrapMode: Text.Wrap
                 color: Theme.secondaryColor
                 font.pixelSize: Theme.fontSizeSmall
-                text: qsTr("Speech recognition runs entirely on this phone with the FUTO "
-                           + "Multilingual-39 model. Recordings are stored in a private temporary "
-                           + "file and erased immediately after transcription or cancellation. "
-                           + "The microphone is unavailable in password fields and stops "
-                           + "after your configured pause, when released in push-to-talk, or "
-                           + "when you tap it again in continuous mode.")
+                text: page.voiceModelInstalled
+                      ? qsTr("Speech recognition runs entirely on this phone with the %1 model. "
+                             + "Recordings are stored in a private temporary "
+                             + "file and erased immediately after transcription or cancellation. "
+                             + "The microphone is unavailable in password fields and stops "
+                             + "after your configured pause, when released in push-to-talk, or "
+                             + "when you tap it again in continuous mode.")
+                             .arg(page.voiceModelName(page.selectedVoiceModelId()))
+                      : qsTr("Speech recognition runs entirely on this phone after an offline "
+                             + "voice model has been installed. Recordings are stored in a "
+                             + "private temporary file and erased immediately after use.")
             }
 
             SectionHeader { text: qsTr("Languages") }

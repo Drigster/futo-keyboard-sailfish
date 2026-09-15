@@ -33,7 +33,8 @@ KeyboardRow {
         languageLabel: ""
         hintEligible: false
     }
-	FutoPeriodKey {}
+	FutoPersianJoinerKey { targetLayout: spacebarRow.targetLayout }
+	FutoPeriodKey { targetLayout: spacebarRow.targetLayout }
 	// Keep the Enter glyph at its normal size while narrowing only its touch
 	// cell.  This moves a normal-width Period key right and extends Space.
 	FutoEnterKey {

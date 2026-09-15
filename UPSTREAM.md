@@ -37,6 +37,10 @@ Keyboard layout definitions:
 - Language-specific long-press choices are taken from the locale data in the
   pinned Android Keyboard revision above. Generated popups retain separate
   display labels and committed text, including multi-codepoint Arabic output.
+- The Persian ZWNJ/ZWJ key behavior, Zhe placement and the common Arabic-script
+  diacritic order additionally follow Ali Najafi and Sepehr Noori's
+  BSD-licensed Persian Keyboard 0.6 for Sailfish OS. Its notice is included in
+  `LICENSES/ALINA-PERSIAN-KEYBOARD-BSD.txt`.
 
 Native script fonts:
 
@@ -85,8 +89,13 @@ Offline voice input:
 
 - Repository: https://github.com/futo-org/voice-input
 - Commit: `680562f1f80f3caf57b21c72930523ccd9241b86`
-- Model: `tiny_acft_q8_0.bin` (FUTO Multilingual-39)
-- Model SHA-256: `07aa4d514144deacf5ffec5cacb36c93dee272fda9e64ac33a801f8cd5cbd953`
+- Models and SHA-256 checksums:
+  - English-39: `4b5480aa1b14a7efc5b578ef176510970a898049671c3cd237285b3e3f6bfbfc`
+  - English-74: `e9b4b7b81b8a28769e8aa9962aa39bb9f21b622cf6a63982e93f065ed5caf1c8`
+  - English-244: `58fbe949992dafed917590d58bc12ca577b08b9957f0b3e0d7ee71b64bed3aa8`
+  - Multilingual-39: `07aa4d514144deacf5ffec5cacb36c93dee272fda9e64ac33a801f8cd5cbd953`
+  - Multilingual-74: `e44f352c9aa2c3609dece20c733c4ad4a75c28cd9ab07d005383df55fa96efc4`
+  - Multilingual-244: `15ef255465a6dc582ecf1ec651a4618c7ee2c18c05570bbe46493d248d465ac4`
 - License: FUTO Source First License 1.0 (included separately)
 
 FUTO Swipe:

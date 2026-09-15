@@ -25,7 +25,66 @@ import (
 
 const bundledContentManifestPath = "/usr/share/futo-keyboard-sailfish/content/manifest.json"
 
+const (
+	defaultVoiceModelID = "voice-multilingual-39"
+	voiceModelDconfPath = "/sailfish/text_input/futo_keyboard/voiceModel"
+)
+
 var contentIDPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,63}$`)
+
+type voiceModelSpec struct {
+	ID          string
+	Name        string
+	File        string
+	EnglishOnly bool
+	Tier        int
+}
+
+var voiceModelCatalog = []voiceModelSpec{
+	{ID: "voice-english-39", Name: "English - Fastest", File: "english-39.bin", EnglishOnly: true, Tier: 39},
+	{ID: "voice-english-74", Name: "English - Slower, more accurate", File: "english-74.bin", EnglishOnly: true, Tier: 74},
+	{ID: "voice-english-244", Name: "English - Slowest, most accurate", File: "english-244.bin", EnglishOnly: true, Tier: 244},
+	{ID: defaultVoiceModelID, Name: "Multilingual - Default, fastest", File: "tiny_acft_q8_0.bin", Tier: 39},
+	{ID: "voice-multilingual-74", Name: "Multilingual - Slower, more accurate", File: "multilingual-74.bin", Tier: 74},
+	{ID: "voice-multilingual-244", Name: "Multilingual - Slowest, most accurate", File: "multilingual-244.bin", Tier: 244},
+}
+
+func voiceModelByID(id string) (voiceModelSpec, bool) {
+	for _, model := range voiceModelCatalog {
+		if model.ID == id {
+			return model, true
+		}
+	}
+	return voiceModelSpec{}, false
+}
+
+func selectedVoiceModelID() string {
+	value := strings.TrimSpace(os.Getenv("FUTO_VOICE_MODEL"))
+	if value == "" {
+		if configured, err := dconfRead(voiceModelDconfPath); err == nil {
+			if matches := dconfQuotedValue.FindStringSubmatch(configured); len(matches) == 2 {
+				value = matches[1]
+			}
+		}
+	}
+	if _, ok := voiceModelByID(value); !ok {
+		return defaultVoiceModelID
+	}
+	return value
+}
+
+func resolvedVoiceModel() (voiceModelSpec, string) {
+	model, _ := voiceModelByID(selectedVoiceModelID())
+	root := optionalContentRoot()
+	userPath := ""
+	if root != "" {
+		userPath = filepath.Join(root, "voice", model.File)
+	}
+	if model.ID == defaultVoiceModelID {
+		return model, firstAvailableContentFile(userPath, bundledVoiceModelPath)
+	}
+	return model, firstAvailableContentFile(userPath)
+}
 
 type contentManifest struct {
 	FormatVersion  int           `json:"formatVersion"`
@@ -40,6 +99,9 @@ type contentItem struct {
 	Name           string   `json:"name"`
 	Version        string   `json:"version"`
 	Archive        string   `json:"archive"`
+	DownloadURL    string   `json:"url,omitempty"`
+	FallbackURL    string   `json:"fallbackUrl,omitempty"`
+	RawFile        bool     `json:"rawFile,omitempty"`
 	SHA256         string   `json:"sha256"`
 	DownloadBytes  int64    `json:"downloadBytes"`
 	InstalledBytes int64    `json:"installedBytes"`
@@ -124,12 +186,8 @@ func resolvedDictionaryPath(file string) string {
 }
 
 func resolvedVoiceModelPath() string {
-	root := optionalContentRoot()
-	userPath := ""
-	if root != "" {
-		userPath = filepath.Join(root, "voice", "tiny_acft_q8_0.bin")
-	}
-	return firstAvailableContentFile(userPath, bundledVoiceModelPath)
+	_, modelPath := resolvedVoiceModel()
+	return modelPath
 }
 
 func resolvedSwipeModelPath() string {
@@ -186,6 +244,17 @@ func loadContentManifest(manifestPath string) (contentManifest, error) {
 		}
 		if strings.Contains(item.Archive, "/") || strings.Contains(item.Archive, `\`) {
 			return manifest, fmt.Errorf("invalid archive name for %q", item.ID)
+		}
+		if item.RawFile && item.DownloadBytes != item.InstalledBytes {
+			return manifest, fmt.Errorf("raw content size differs for %q", item.ID)
+		}
+		for _, candidate := range []string{item.DownloadURL, item.FallbackURL} {
+			if candidate != "" {
+				downloadURL, err := url.Parse(candidate)
+				if err != nil || downloadURL.Scheme != "https" || downloadURL.Host == "" {
+					return manifest, fmt.Errorf("invalid download URL for %q", item.ID)
+				}
+			}
 		}
 	}
 	return manifest, nil
@@ -273,19 +342,68 @@ func (manager *contentManager) installedVersion(id string) string {
 	return marker.Version
 }
 
+func rawContentMatches(item contentItem, destination string) bool {
+	if !item.RawFile || len(item.Paths) != 1 {
+		return false
+	}
+	info, err := os.Stat(destination)
+	if err != nil || !info.Mode().IsRegular() || info.Size() != item.InstalledBytes {
+		return false
+	}
+	file, err := os.Open(destination)
+	if err != nil {
+		return false
+	}
+	defer file.Close()
+	hash := sha256.New()
+	if _, err := io.Copy(hash, file); err != nil {
+		return false
+	}
+	return strings.EqualFold(hex.EncodeToString(hash.Sum(nil)), item.SHA256)
+}
+
+func (manager *contentManager) writeInstalledMarker(item contentItem) error {
+	marker := installedContentMarker{
+		ID:          item.ID,
+		Version:     item.Version,
+		SHA256:      item.SHA256,
+		InstalledAt: time.Now().Unix(),
+	}
+	markerData, err := json.Marshal(marker)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(manager.markerPath(item.ID)), 0o700); err != nil {
+		return err
+	}
+	markerTemporary := manager.markerPath(item.ID) + ".new"
+	if err := os.WriteFile(markerTemporary, markerData, 0o600); err != nil {
+		return err
+	}
+	return os.Rename(markerTemporary, manager.markerPath(item.ID))
+}
+
 func (manager *contentManager) installed(item contentItem) bool {
+	destinations := make([]string, 0, len(item.Paths))
 	for _, relative := range item.Paths {
 		destination, err := manager.destination(relative)
 		if err != nil || !pathAvailable(destination) {
 			return false
 		}
+		destinations = append(destinations, destination)
 	}
 	// A pack whose content was rebuilt carries a new version, so the copy on
-	// disk is stale and the manifest offers it again. Installs made before the
-	// marker existed record no version and are left alone.
+	// disk is normally stale and the manifest offers it again. Raw files can be
+	// verified directly: when the bytes already match the new catalog entry,
+	// repair the marker instead of forcing an unnecessary redownload. This also
+	// preserves the original multilingual voice model across upgrades from
+	// releases that distributed the same model inside an archive.
 	if recorded := manager.installedVersion(item.ID); recorded != "" &&
 		recorded != item.Version {
-		return false
+		if len(destinations) != 1 || !rawContentMatches(item, destinations[0]) {
+			return false
+		}
+		_ = manager.writeInstalledMarker(item)
 	}
 	return true
 }
@@ -303,30 +421,52 @@ func (manager *contentManager) localArchive(item contentItem) string {
 }
 
 func (manager *contentManager) remoteURL(item contentItem) (string, error) {
+	urls, err := manager.remoteURLs(item)
+	if err != nil {
+		return "", err
+	}
+	return urls[0], nil
+}
+
+func (manager *contentManager) remoteURLs(item contentItem) ([]string, error) {
 	base := strings.TrimSpace(os.Getenv("FUTO_CONTENT_BASE_URL"))
+	if base == "" && item.DownloadURL != "" {
+		result := make([]string, 0, 2)
+		for _, candidate := range []string{item.DownloadURL, item.FallbackURL} {
+			if candidate == "" {
+				continue
+			}
+			downloadURL, err := url.Parse(candidate)
+			if err != nil || downloadURL.Scheme != "https" || downloadURL.Host == "" {
+				return nil, errors.New("invalid content download URL")
+			}
+			result = append(result, downloadURL.String())
+		}
+		return result, nil
+	}
 	if base == "" {
 		base = strings.TrimSpace(manager.manifest.BaseURL)
 	}
 	if base == "" {
-		return "", errors.New("download server is not configured")
+		return nil, errors.New("download server is not configured")
 	}
 	baseURL, err := url.Parse(base)
 	if err != nil || baseURL.Host == "" {
-		return "", errors.New("invalid content download server")
+		return nil, errors.New("invalid content download server")
 	}
 	allowInsecure := os.Getenv("FUTO_ALLOW_INSECURE_CONTENT") == "1" &&
 		(baseURL.Hostname() == "127.0.0.1" || baseURL.Hostname() == "localhost")
 	if baseURL.Scheme != "https" && !allowInsecure {
-		return "", errors.New("content downloads require HTTPS")
+		return nil, errors.New("content downloads require HTTPS")
 	}
 	if !strings.HasSuffix(baseURL.Path, "/") {
 		baseURL.Path += "/"
 	}
 	archiveURL, err := baseURL.Parse(url.PathEscape(item.Archive))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return archiveURL.String(), nil
+	return []string{archiveURL.String()}, nil
 }
 
 func (manager *contentManager) itemAvailable(item contentItem) bool {
@@ -472,14 +612,24 @@ func (manager *contentManager) installContent(item contentItem, job *contentJob)
 		return err
 	}
 	defer os.RemoveAll(stagingRoot)
-	if err := extractContentArchive(archivePath, stagingRoot, item.InstalledBytes, job.Cancel); err != nil {
-		return err
-	}
-	_ = os.Remove(archivePath)
 	relative := item.Paths[0]
 	staged := filepath.Join(stagingRoot, filepath.FromSlash(relative))
+	if item.RawFile {
+		if err := os.MkdirAll(filepath.Dir(staged), 0o700); err != nil {
+			return err
+		}
+		if err := os.Rename(archivePath, staged); err != nil {
+			return err
+		}
+	} else {
+		if err := extractContentArchive(archivePath, stagingRoot,
+			item.InstalledBytes, job.Cancel); err != nil {
+			return err
+		}
+		_ = os.Remove(archivePath)
+	}
 	if !pathAvailable(staged) {
-		return errors.New("content archive does not contain its declared path")
+		return errors.New("download does not contain its declared path")
 	}
 	destination, err := manager.destination(relative)
 	if err != nil {
@@ -503,55 +653,60 @@ func (manager *contentManager) installContent(item contentItem, job *contentJob)
 	}
 	_ = os.RemoveAll(backup)
 	manager.removeLegacyPaths(item.ID)
-	marker := installedContentMarker{
-		ID:          item.ID,
-		Version:     item.Version,
-		SHA256:      item.SHA256,
-		InstalledAt: time.Now().Unix(),
-	}
-	markerData, err := json.Marshal(marker)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(manager.markerPath(item.ID)), 0o700); err != nil {
-		return err
-	}
-	markerTemporary := manager.markerPath(item.ID) + ".new"
-	if err := os.WriteFile(markerTemporary, markerData, 0o600); err != nil {
-		return err
-	}
-	return os.Rename(markerTemporary, manager.markerPath(item.ID))
+	return manager.writeInstalledMarker(item)
 }
 
 func (manager *contentManager) obtainArchive(item contentItem, job *contentJob, destination string) error {
 	source := manager.localArchive(item)
-	var reader io.ReadCloser
 	if source != "" {
 		file, err := os.Open(source)
 		if err != nil {
 			return err
 		}
-		reader = file
-	} else {
-		remote, err := manager.remoteURL(item)
-		if err != nil {
-			return err
+		defer file.Close()
+		return manager.writeVerifiedContent(item, job, destination, file)
+	}
+	remotes, err := manager.remoteURLs(item)
+	if err != nil {
+		return err
+	}
+	var lastError error
+	for _, remote := range remotes {
+		request, requestErr := http.NewRequest(http.MethodGet, remote, nil)
+		if requestErr != nil {
+			lastError = requestErr
+			continue
 		}
-		request, err := http.NewRequest(http.MethodGet, remote, nil)
-		if err != nil {
-			return err
-		}
-		response, err := manager.httpClient.Do(request)
-		if err != nil {
-			return err
+		response, requestErr := manager.httpClient.Do(request)
+		if requestErr != nil {
+			lastError = requestErr
+			continue
 		}
 		if response.StatusCode != http.StatusOK {
 			response.Body.Close()
-			return fmt.Errorf("download failed: HTTP %d", response.StatusCode)
+			lastError = fmt.Errorf("download failed: HTTP %d", response.StatusCode)
+			continue
 		}
-		reader = response.Body
+		lastError = manager.writeVerifiedContent(item, job, destination, response.Body)
+		response.Body.Close()
+		if lastError == nil {
+			return nil
+		}
+		_ = os.Remove(destination)
+		if errors.Is(lastError, errContentDownloadCancelled) {
+			return lastError
+		}
 	}
-	defer reader.Close()
+	if lastError == nil {
+		lastError = errors.New("no content download source is configured")
+	}
+	return lastError
+}
+
+var errContentDownloadCancelled = errors.New("download cancelled")
+
+func (manager *contentManager) writeVerifiedContent(item contentItem, job *contentJob,
+	destination string, reader io.Reader) error {
 	file, err := os.OpenFile(destination, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
 	if err != nil {
 		return err
@@ -563,7 +718,7 @@ func (manager *contentManager) obtainArchive(item contentItem, job *contentJob, 
 		select {
 		case <-job.Cancel:
 			file.Close()
-			return errors.New("download cancelled")
+			return errContentDownloadCancelled
 		default:
 		}
 		read, readErr := reader.Read(buffer)

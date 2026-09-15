@@ -1,16 +1,26 @@
-# FUTO Keyboard for Sailfish OS 0.5.0
+# FUTO Keyboard for Sailfish OS 0.6.0
 
 ## New features
 
-- Added **Correct typos when pressing punctuation** as a separate setting.
-- Added adjustable number-row height.
-- Added **QWERTY (Regional)** as a separate layout option.
-- Added a scrollbar to the layout picker.
+- Choose from six offline FUTO voice models, with English and multilingual
+  options prioritizing speed or accuracy.
+- Language switching and cursor control can share opposite halves of the space
+  bar, in either order.
+- Arabic and Persian include common diacritics through long-press menus.
+- Persian includes joining and text-direction controls.
 
 ## Fixes
 
-- The selected language is remembered after a reboot.
-- Incognito no longer accidentally turns on in ordinary text fields.
-- “Numbers across the top” on the 123 page works with all layouts.
-- Catalan is labeled correctly.
-- Long layout names scroll in Quick Settings instead of being cut off.
+- Arabic and Persian use appropriate punctuation, with Latin alternatives
+  available by holding the keys.
+- Persian **ژ** is available by holding **ز**, giving the bottom row more
+  comfortable key sizes.
+- Unfinished Arabic and Persian words appear on the correct side of the text
+  field.
+- Returning from the 123 page no longer opens a shifted Arabic or Persian
+  layout.
+- Quick Settings no longer overlaps cursor-control or voice-input status.
+- Voice typing cannot be enabled without an installed model and directs the
+  user to Offline voice when one is needed.
+- Existing offline voice installations remain available after upgrading.
+- Voice-model downloads can fall back to FUTO's official download source.

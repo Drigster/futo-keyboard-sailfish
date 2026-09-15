@@ -118,10 +118,19 @@ assert(context.letter(20, 0, 0) === "ض"
        && context.letter(20, 1, 2) === "ی"
        && context.letter(20, 1, 9) === "ک"
        && context.letter(20, 1, 10) === "گ"
-       && context.letter(20, 2, 2) === "ژ"
-       && context.letter(20, 2, 7) === "پ"
-       && context.letter(20, 2, 9) === "چ",
+       && context.letter(20, 2, 2) === "ز"
+       && context.letter(20, 2, 6) === "پ"
+       && context.letter(20, 2, 8) === "چ"
+       && context.alternatives(20, "ز", "FA", false).indexOf("ژ") >= 0,
        "Persian national letters are incorrect");
+assert(context.keyKind(13, 2, 0) === "character"
+       && context.keyKind(13, 2, 10) === "delete"
+       && context.rowLength(13, 2) === 11,
+       "Arabic must not gain a Shift key");
+assert(context.keyKind(20, 2, 0) === "character"
+       && context.keyKind(20, 2, 9) === "delete"
+       && context.rowLength(20, 2) === 10,
+       "Persian must not gain a Shift key");
 
 const expectedDefaults = {
     AR: 13, CS: 1, DE: 4, EL: 14, EN: 0, EN_GB: 0, ES: 5, FA: 20,

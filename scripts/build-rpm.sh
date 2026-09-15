@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 ARCH=${FUTO_ARCH:-aarch64}
-VERSION=0.5.0
+VERSION=0.6.0
 RELEASE=1
 NAME=futo-keyboard-sailfish
 OUTPUT_DIR=${FUTO_RPM_OUTPUT_DIR:-$ROOT/build/rpm}

@@ -14,7 +14,7 @@ Page {
         var configured = Number(settings.spacebarHoldAction)
         if (!isFinite(configured) || configured < 0)
             return settings.spacebarCursorControlEnabled ? 1 : 0
-        return Math.max(0, Math.min(2, Math.round(configured)))
+        return Math.max(0, Math.min(4, Math.round(configured)))
     }
     allowedOrientations: Orientation.All
     property bool swipeContentReady: false
@@ -167,11 +167,14 @@ Page {
                         return
                     settings.spacebarHoldAction = currentIndex
                     settings.spacebarCursorControlEnabled = currentIndex === 1
+                            || currentIndex >= 3
                 }
                 menu: ContextMenu {
                     MenuItem { text: qsTr("Do nothing") }
                     MenuItem { text: qsTr("Move the cursor") }
                     MenuItem { text: qsTr("Switch language") }
+                    MenuItem { text: qsTr("Switch language & move the cursor") }
+                    MenuItem { text: qsTr("Move the cursor & switch language") }
                 }
                 Component.onCompleted: page.spacebarHoldReady = true
             }

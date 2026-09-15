@@ -4,7 +4,7 @@
 %global _missing_build_ids_terminate_build 0
 
 Name:           futo-keyboard-sailfish
-Version:        0.5.0
+Version:        0.6.0
 Release:        1
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
 License:        LicenseRef-FUTO-Source-First-1.1-kb AND GPL-3.0-only AND BSD-3-Clause AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND LGPL-2.1-or-later AND (LGPL-2.1-only OR LGPL-3.0-only)
@@ -99,6 +99,7 @@ fi
 %license %{_licensedir}/%{name}/NOTO-EMOJI-SVG-LICENSE.txt
 %license %{_licensedir}/%{name}/UNICODE-LICENSE.txt
 %license %{_licensedir}/%{name}/FUTO-LAYOUTS-ATTRIBUTION.md
+%license %{_licensedir}/%{name}/ALINA-PERSIAN-KEYBOARD-BSD.txt
 %license %{_licensedir}/%{name}/HUNGARIAN-DICTIONARY-ATTRIBUTION.md
 %license %{_licensedir}/%{name}/PERSIAN-DICTIONARY-ATTRIBUTION.md
 %license %{_licensedir}/%{name}/ARABIC-DICTIONARY-ATTRIBUTION.md
@@ -176,6 +177,7 @@ fi
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoKeyboardLayout.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoNumpadLayout.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoPeriodKey.qml
+%{_datadir}/maliit/plugins/com/jolla/layouts/FutoPersianJoinerKey.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoSymbolLayout.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoNumpadRow.qml
 %{_datadir}/maliit/plugins/com/jolla/layouts/FutoQwertyLayout.qml
@@ -194,6 +196,20 @@ fi
 %{_userunitdir}/maliit-server.service.d/10-futo-hardware-policy.conf
 
 %changelog
+* Tue Sep 15 2026 HtheB - 0.6.0-1
+- Add six selectable offline FUTO voice models in English and multilingual
+  variants, with choices prioritizing speed or accuracy.
+- Allow language switching and cursor control to share opposite halves of the
+  space bar in either order.
+- Add Arabic and Persian diacritics, localized punctuation, and Persian
+  joining and text-direction controls.
+- Keep unfinished Arabic and Persian words on the correct side of the text
+  field and prevent shifted layouts from appearing after leaving the 123 page.
+- Prevent Quick Settings from overlapping cursor control and voice input.
+- Require an installed offline model before voice typing can be enabled, while
+  preserving the voice model downloaded by existing installations.
+- Fall back to FUTO's official download source for voice models.
+
 * Sun Sep 13 2026 HtheB - 0.5.0-1
 - Add independent typo correction for punctuation, adjustable number-row
   height, and a separately selectable QWERTY (Regional) layout.

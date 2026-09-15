@@ -14,12 +14,24 @@ import ".."
 FutoCharacterKey {
     id: periodKey
 
+    property Item targetLayout
+    readonly property bool arabicPunctuation: targetLayout
+            && targetLayout.usesArabicDigits !== undefined
+            && targetLayout.usesArabicDigits
+    readonly property bool persianPunctuation: targetLayout
+            && targetLayout.usesPersianDigits !== undefined
+            && targetLayout.usesPersianDigits
+    readonly property bool localizedPunctuation: arabicPunctuation
+                                                 || persianPunctuation
+
     caption: "."
     captionShifted: "."
     symView: "."
     symView2: "."
-    letterAccents: "!,.?"
-    letterAccentsShifted: "!,.?"
+    letterAccents: localizedPunctuation
+                   ? (persianPunctuation ? ".…-؛:،؟!" : ".…؛:،؟!")
+                   : "!,.?"
+    letterAccentsShifted: letterAccents
     // Already among the alternates, so it is highlighted rather than inserted.
     secondarySymbol: "."
     secondaryHintEligible: false
@@ -55,7 +67,7 @@ FutoCharacterKey {
         color: parent.palette.primaryColor
         font.pixelSize: Math.max(Theme.fontSizeTiny,
                                  Math.round(parent.pixelSize * 0.43))
-        text: ",!?"
+        text: periodKey.localizedPunctuation ? "،؛؟" : ",!?"
         visible: periodVisualSettings.secondarySymbolsEnabled
                  && !attributes.inSymView
         opacity: 0.72

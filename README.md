@@ -16,7 +16,7 @@ This project brings the FUTO typing experience to Sailfish OS while adding many 
 - Context-aware suggestions and compound-word support
 - Swipe typing with a smooth visual trail
 - Cursor control by holding and dragging the space bar
-- Fully offline voice input with live transcription and push-to-talk
+- Fully offline voice input with live transcription, push-to-talk, and selectable FUTO voice models
 - Optional URL history and suggestions
 
 ### Make the keyboard yours
@@ -81,7 +81,7 @@ Open **FUTO Keyboard settings → Downloadable content** to install the content 
 
 - Language dictionaries
 - Emoji artwork
-- Offline voice input
+- Offline voice models in English and multilingual sizes
 
 Content can also be removed again from the same menu.
 

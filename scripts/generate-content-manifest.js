@@ -81,6 +81,23 @@ function item(id, kind, name, archive, installedSource, installedPath, extra) {
     }, extra || {});
 }
 
+function directFileItem(id, name, filename, installedPath, sha256, bytes, version) {
+    return {
+        id,
+        kind: "voice",
+        name,
+        version: version || `upstream-${sha256.slice(0, 8)}`,
+        archive: filename,
+        url: `${defaultBaseUrl}${filename}`,
+        fallbackUrl: `https://keyboard.futo.org/${filename}`,
+        rawFile: true,
+        sha256,
+        downloadBytes: bytes,
+        installedBytes: bytes,
+        paths: [installedPath]
+    };
+}
+
 const items = [];
 for (const style of ["twemoji", "openmoji", "noto"]) {
     const display = style === "twemoji" ? "Twemoji"
@@ -96,13 +113,55 @@ for (const style of ["twemoji", "openmoji", "noto"]) {
     ));
 }
 
-items.push(item(
+items.push(directFileItem(
     "voice-multilingual-39",
-    "voice",
-    "FUTO Multilingual-39",
-    `futo-content-voice-multilingual-39-${packVersion}.tar.gz`,
-    path.join(projectRoot, "voice/models/tiny_acft_q8_0.bin"),
-    "voice/tiny_acft_q8_0.bin"
+    "Multilingual - Default, fastest",
+    "voice-input-multilingual-39.bin",
+    "voice/tiny_acft_q8_0.bin",
+    "07aa4d514144deacf5ffec5cacb36c93dee272fda9e64ac33a801f8cd5cbd953",
+    43537450,
+    packVersion
+));
+
+items.push(directFileItem(
+    "voice-english-39",
+    "English - Fastest",
+    "voice-input-english-39.bin",
+    "voice/english-39.bin",
+    "4b5480aa1b14a7efc5b578ef176510970a898049671c3cd237285b3e3f6bfbfc",
+    43550795
+));
+items.push(directFileItem(
+    "voice-english-74",
+    "English - Slower, more accurate",
+    "voice-input-english-74.bin",
+    "voice/english-74.bin",
+    "e9b4b7b81b8a28769e8aa9962aa39bb9f21b622cf6a63982e93f065ed5caf1c8",
+    81781811
+));
+items.push(directFileItem(
+    "voice-english-244",
+    "English - Slowest, most accurate",
+    "voice-input-english-244.bin",
+    "voice/english-244.bin",
+    "58fbe949992dafed917590d58bc12ca577b08b9957f0b3e0d7ee71b64bed3aa8",
+    264477561
+));
+items.push(directFileItem(
+    "voice-multilingual-74",
+    "Multilingual - Slower, more accurate",
+    "voice-input-multilingual-74.bin",
+    "voice/multilingual-74.bin",
+    "e44f352c9aa2c3609dece20c733c4ad4a75c28cd9ab07d005383df55fa96efc4",
+    81768602
+));
+items.push(directFileItem(
+    "voice-multilingual-244",
+    "Multilingual - Slowest, most accurate",
+    "voice-input-multilingual-244.bin",
+    "voice/multilingual-244.bin",
+    "15ef255465a6dc582ecf1ec651a4618c7ee2c18c05570bbe46493d248d465ac4",
+    264464624
 ));
 
 items.push(item(

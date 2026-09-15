@@ -19,16 +19,23 @@ for (const item of manifest.items) {
     if (!item.id || !item.archive || !item.sha256 || !item.downloadBytes
             || !item.installedBytes || !Array.isArray(item.paths) || item.paths.length !== 1)
         throw new Error(`incomplete content item ${item.id || "<unknown>"}`)
+    if (item.rawFile && (item.downloadBytes !== item.installedBytes
+            || !String(item.url || "").startsWith("https://")
+            || !String(item.fallbackUrl || "").startsWith("https://")))
+        throw new Error(`invalid direct content item ${item.id}`)
     process.stdout.write([
         item.id, item.archive, item.sha256, item.downloadBytes,
-        item.installedBytes, item.paths[0]
+        item.installedBytes, item.paths[0], item.rawFile ? "raw" : "archive"
     ].join("\t") + "\n")
 }
 NODE
 
 count=0
 while IFS=$'\t' read -r id archive expected_hash expected_download \
-        expected_installed declared_path; do
+        expected_installed declared_path item_format; do
+    if [ "$item_format" = "raw" ]; then
+        continue
+    fi
     pack="$PACK_DIRECTORY/$archive"
     test -s "$pack" || { echo "Missing content pack: $archive" >&2; exit 1; }
     actual_hash=$(sha256sum "$pack" | cut -d' ' -f1)
@@ -76,7 +83,8 @@ while IFS=$'\t' read -r id archive expected_hash expected_download \
 done < "$TEMPORARY/items.tsv"
 
 actual_count=$(find "$PACK_DIRECTORY" -maxdepth 1 -type f \
-    -name 'futo-content-*.tar.gz' | wc -l)
+    -name 'futo-content-*.tar.gz' \
+    ! -name 'futo-content-voice-multilingual-39-0.4.0-1.tar.gz' | wc -l)
 test "$actual_count" = "$count" || {
     echo "Found $actual_count archives but the manifest contains $count" >&2
     exit 1

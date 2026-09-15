@@ -119,8 +119,9 @@ Page {
         settings.spacebarCursorControlEnabled = true
         settings.spacebarHoldAction = 1
         settings.swipeDeleteEnabled = true
-		settings.swipeTypingEnabled = false
+        settings.swipeTypingEnabled = false
         settings.voiceTypingEnabled = false
+        settings.voiceModel = "voice-multilingual-39"
         settings.voiceKeyVisible = true
 		settings.voicePushToTalkEnabled = false
         settings.voiceLiveTranscriptionEnabled = true
@@ -222,6 +223,7 @@ Page {
         property bool swipeDeleteEnabled: true
 		property bool swipeTypingEnabled: false
         property bool voiceTypingEnabled: false
+        property string voiceModel: "voice-multilingual-39"
         property bool voiceKeyVisible: true
 		property bool voicePushToTalkEnabled: false
         property bool voiceLiveTranscriptionEnabled: true

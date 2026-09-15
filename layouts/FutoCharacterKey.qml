@@ -11,6 +11,8 @@ CharacterKey {
     property string letterAccentsShifted: defaultAccents(caption, true)
     property string keyOutput: caption
     property string keyOutputShifted: captionShifted
+    property string symViewOutput: symView
+    property string symView2Output: symView2
     property var letterAlternativeChoices: []
     property var letterAlternativeChoicesShifted: []
     property bool exactAlternativeMode: false
@@ -18,6 +20,16 @@ CharacterKey {
     property string specialArabicFontFamily: "Noto Naskh Arabic"
     property string androidRiyalFontFamily: "FUTO Android Riyal"
     property string secondarySymbol: symView
+    // Most secondary keys display and insert the same character. Structured
+    // popups can override these two values when a combining character needs a
+    // visible carrier while its output must remain the bare combining mark.
+    property string secondarySymbolCaption: secondarySymbol
+    property string secondarySymbolOutput: secondarySymbol
+    property string secondaryHintCaption: secondarySymbolCaption
+    // Combining marks cannot share one ordinary Label: Arabic shaping joins
+    // them to the same invisible carrier and turns the hint into a cluster.
+    // A key may instead provide individually rendered, fixed-width parts.
+    property var secondaryHintParts: []
     property bool secondaryHintEligible: true
     // Separated keys draw a card behind every letter.  Bottom-row punctuation
     // sits beside Space, Comma and Enter, which draw none, so a key placed
@@ -58,7 +70,7 @@ CharacterKey {
 
     function baseKeyOutput() {
         return attributes.inSymView && symView.length > 0
-               ? (attributes.inSymView2 ? symView2 : symView)
+               ? (attributes.inSymView2 ? symView2Output : symViewOutput)
                : (attributes.isShifted ? keyOutputShifted : keyOutput)
     }
 
@@ -68,7 +80,7 @@ CharacterKey {
         var source = attributes.isShifted
                 ? letterAlternativeChoicesShifted : letterAlternativeChoices
         return LetterLayouts.structuredChoicesWithSecondary(
-                    secondarySymbol,
+                    secondarySymbolOutput,
                     source && source.length !== undefined ? source : [],
                     visualSettings.secondarySymbolsEnabled)
     }
@@ -136,6 +148,10 @@ CharacterKey {
         case ":": return ";"
         case "!": return "¡"
         case "?": return "¿"
+        case "؟": return "?"
+        case "؛": return ";"
+        case "،": return ","
+        case "٪": return "%"
         default: return ""
         }
     }
@@ -196,6 +212,10 @@ CharacterKey {
         case "+": return "±"
         case "!": return "¡"
         case "?": return "¿"
+        case "؟": return "?"
+        case "؛": return ";"
+        case "،": return ","
+        case "٪": return "%"
         default: return ""
         }
     }
@@ -203,12 +223,16 @@ CharacterKey {
     function popupChoices() {
         if (popupArmed)
             return ""
-        var symbolChoices = symbolPopupChoices(baseKeyText())
-        if (symbolChoices !== "")
-            return symbolChoices
+        // Exact layout alternatives carry distinct captions and outputs. Give
+        // them priority on the letter page; otherwise an Arabic punctuation
+        // key such as ، is intercepted by the generic comma conversion before
+        // its diacritic choices can be displayed.
         var structured = activeStructuredChoices()
         if (structured.length > 0)
             return placeholderAccents(structured.length)
+        var symbolChoices = symbolPopupChoices(baseKeyText())
+        if (symbolChoices !== "")
+            return symbolChoices
         if (exactAlternativeMode && !attributes.inSymView)
             return visualSettings.secondarySymbolsEnabled ? secondarySymbol : ""
         return accentChoices(attributes.isShifted
@@ -267,8 +291,7 @@ CharacterKey {
 
     function replacePopperChoices(popper) {
         var choices = activeStructuredChoices()
-        if (!popper || choices.length < 1
-                || symbolPopupChoices(baseKeyText()) !== "")
+        if (!popper || choices.length < 1)
             return
         var model = findPopperModel(popper)
         if (!model)
@@ -455,15 +478,21 @@ CharacterKey {
 		if (!pressed || gesturePreviewSuppressed)
             return
 
+        var structured = activeStructuredChoices()
         var symbolBase = baseKeyText()
-        var symbolChoices = symbolPopupChoices(symbolBase)
+        var symbolChoices = structured.length > 0
+                            ? "" : symbolPopupChoices(symbolBase)
         var symbolDefault = symbolPopupDefault(symbolBase)
         popupHighlightedText = symbolChoices !== ""
                                ? symbolDefault
                                : ((!attributes.inSymView
                                    && visualSettings.secondarySymbolsEnabled)
-                                  ? secondarySymbol : "")
-        popupHighlightedOutput = popupHighlightedText
+                                  ? secondarySymbolCaption : "")
+        popupHighlightedOutput = symbolChoices !== ""
+                                 ? popupHighlightedText
+                                 : ((!attributes.inSymView
+                                     && visualSettings.secondarySymbolsEnabled)
+                                    ? secondarySymbolOutput : "")
         popupArmed = false
 
         var popper = findPopper(keyboard)
@@ -629,11 +658,47 @@ CharacterKey {
         color: parent.palette.primaryColor
         font.pixelSize: Math.max(Theme.fontSizeTiny,
                                  Math.round(parent.pixelSize * 0.43))
-        text: parent.secondarySymbol
+        text: parent.secondaryHintCaption
+        textFormat: Text.PlainText
         visible: visualSettings.secondarySymbolsEnabled
                  && parent.secondaryHintEligible
                  && !attributes.inSymView
-                 && parent.secondarySymbol !== ""
+                 && parent.secondaryHintParts.length === 0
+                 && parent.secondaryHintCaption !== ""
         opacity: 0.72
+    }
+
+    Row {
+        anchors.top: parent.top
+        anchors.right: parent.right
+        anchors.topMargin: Math.max(1, Theme.paddingSmall / 4)
+        anchors.rightMargin: Math.max(3, Theme.paddingSmall / 2 + 2)
+                             + parent.rightPadding
+        spacing: Math.max(1, Math.round(futoKey.pixelSize * 0.025))
+        layoutDirection: Qt.LeftToRight
+        visible: visualSettings.secondarySymbolsEnabled
+                 && futoKey.secondaryHintEligible
+                 && !attributes.inSymView
+                 && futoKey.secondaryHintParts.length > 0
+        opacity: 0.78
+
+        Repeater {
+            model: futoKey.secondaryHintParts
+
+            Label {
+                width: Math.max(10, Math.round(futoKey.pixelSize * 0.27))
+                height: Math.max(Theme.fontSizeTiny,
+                                 Math.round(futoKey.pixelSize * 0.48))
+                horizontalAlignment: Text.AlignHCenter
+                verticalAlignment: Text.AlignTop
+                color: futoKey.palette.primaryColor
+                font.pixelSize: Math.max(Theme.fontSizeTiny,
+                                         Math.round(futoKey.pixelSize * 0.38))
+                // The non-breaking space is a private carrier for this one
+                // mark. Separate Labels prevent neighbouring marks joining.
+                text: "\u00a0" + String(modelData)
+                textFormat: Text.PlainText
+            }
+        }
     }
 }

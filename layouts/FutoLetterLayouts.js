@@ -114,7 +114,7 @@ var legacyLayouts = [
     { name: "Persian", script: "persian", languages: ["FA"], rows: [
         ["ض", "ص", "ث", "ق", "ف", "غ", "ع", "ه", "خ", "ح", "ج"],
         ["ش", "س", "ی", "ب", "ل", "ا", "ت", "ن", "م", "ک", "گ"],
-        ["ظ", "ط", "ژ", "ز", "ر", "ذ", "د", "پ", "و", "چ"]
+        ["ظ", "ط", "ز", "ر", "ذ", "د", "پ", "و", "چ"]
     ] }
 ]
 
@@ -150,7 +150,7 @@ var letterAlternatives = {
     },
     20: {
         "ه": "ﻫۀة", "ی": "ئيى", "ا": "ٱءآأإ", "ت": "ة",
-        "ک": "ك", "و": "ؤ"
+        "ک": "ك", "و": "ؤ", "ز": "ژ"
     }
 }
 
@@ -501,14 +501,24 @@ function rowLength(value, row) {
     var rows = layouts[layoutIndex].rows
     if (row < 0 || row >= rows.length)
         return 0
-    return layoutIndex < legacyLayoutCount && row === rows.length - 1
-            ? rows[row].length + 2 : rows[row].length
+    if (layoutIndex < legacyLayoutCount && row === rows.length - 1) {
+        var layoutScript = layouts[layoutIndex].script
+        return rows[row].length
+                + (layoutScript === "arabic" || layoutScript === "persian" ? 1 : 2)
+    }
+    return rows[row].length
 }
 
 function key(value, row, column) {
     var layoutIndex = clampedIndex(value)
     var rows = layouts[layoutIndex].rows
     if (layoutIndex < legacyLayoutCount && row === rows.length - 1) {
+        var layoutScript = layouts[layoutIndex].script
+        if (layoutScript === "arabic" || layoutScript === "persian") {
+            if (column === rows[row].length)
+                return { kind: "delete" }
+            return rawKey(layoutIndex, row, column) || { kind: "gap" }
+        }
         if (column === 0)
             return { kind: "shift" }
         if (column === rows[row].length + 1)
@@ -712,6 +722,20 @@ function alternativeChoices(layoutValue, row, column, languageCodes, shiftedValu
             return stringChoices(fixed)
     }
 
+    // Persian keeps the established letter alternatives, while also exposing
+    // the two invisible bidi controls with readable Sailfish-style captions.
+    if (layoutIndex === 20) {
+        var persianChoices = stringChoices(alternatives(
+                layoutIndex, item.caption, languageCodes, shiftedValue))
+        if (!shiftedValue && item.caption === "و")
+            appendChoice(persianChoices,
+                         { caption: "|›", output: "\u200e" }, "")
+        else if (!shiftedValue && item.caption === "چ")
+            appendChoice(persianChoices,
+                         { caption: "‹|", output: "\u200f" }, "")
+        return persianChoices
+    }
+
     // The stable pre-catalogue layouts keep their established broad accent
     // collection. Generated layouts use FUTO's exact structured choices,
     // including distinct labels/outputs and multi-codepoint results.
@@ -743,7 +767,8 @@ function alternativeChoices(layoutValue, row, column, languageCodes, shiftedValu
 }
 
 function hasExactAlternatives(layoutValue) {
-    return clampedIndex(layoutValue) >= legacyLayoutCount
+    var layoutIndex = clampedIndex(layoutValue)
+    return layoutIndex === 20 || layoutIndex >= legacyLayoutCount
 }
 
 // A row can open with a shift key and close with a backspace, while the hint
