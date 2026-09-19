@@ -22,6 +22,11 @@ InputHandler {
     property double committedSpaceTimestamp: 0
     property int committedSpaceExpectedCursor: -1
     property string preedit: ""
+	// Ordinary typing is committed to the editor immediately so applications
+	// can react to the first character (enable Send, preserve the final word,
+	// and so on). Keep the current word here only as FUTO's private prediction
+	// query; unlike a real Maliit preedit it is already part of the document.
+	property bool preeditAlreadyCommitted: false
     property int requestSerial: 0
     property int urlRequestSerial: 0
     property bool trackSurroundings: false
@@ -172,7 +177,8 @@ InputHandler {
 	// fields stay on the existing preedit path so swipe/search and URL-history
 	// suggestions continue to work.
 	readonly property bool immediateCommitField: !urlField
-	        && (!MInputMethodQuick.predictionEnabled
+	        && (!keyboardSettings.predictionEnabled
+	            || !MInputMethodQuick.predictionEnabled
 	            || terminalInputApplication())
 	readonly property bool credentialUsernameField: !passwordField && !urlField
 	        && (usernameMetadataAvailable() || emailContentTypeActive()
@@ -1038,6 +1044,7 @@ InputHandler {
 		}
 		MInputMethodQuick.sendCommit(value, -cursor, currentLength)
 		preedit = ""
+		preeditAlreadyCommitted = false
 		if (replacingPassword) {
 			credentialCapturePassword = ""
 		} else {
@@ -1361,6 +1368,7 @@ InputHandler {
             // prefix here made Enter commit it once more (for example,
             // "tweakers.net" became "tweakers.nettwe").
             preedit = ""
+			preeditAlreadyCommitted = false
             editorTypedBuffer = acceptedUrl
             nextWordMode = false
             nextContextOverride = ""
@@ -1611,7 +1619,13 @@ InputHandler {
         onEnabledLanguagesChanged: futoHandler.requestSuggestionsSoon()
         onAutomaticLanguageDetectionChanged: futoHandler.requestSuggestionsSoon()
         onNextWordPredictionEnabledChanged: futoHandler.requestSuggestionsSoon()
-        onPredictionEnabledChanged: futoHandler.requestSuggestionsSoon()
+        onPredictionEnabledChanged: {
+			// Do not leave an old composing span behind when suggestions are
+			// disabled from Settings while an editor is still focused.
+			if (!predictionEnabled && futoHandler.preedit !== "")
+				futoHandler.commit(futoHandler.preedit)
+			futoHandler.requestSuggestionsSoon()
+		}
         onForcedAppSupportKeyEventsChanged: {
             if (forcedAppSupportKeyEvents)
                 futoHandler.resetSuggestionDisplay()
@@ -2662,6 +2676,7 @@ InputHandler {
             readonly property bool emojiSearchVisible: keyboardLayout.emojiSearchMode
             readonly property bool symbolTabsVisible: keyboardLayout.extendedSymbolMode
             readonly property bool controlsVisible: keyboardLayout.controlMode
+			readonly property bool layoutEditorVisible: keyboardLayout.layoutEditorMode
 			readonly property bool voiceStatusVisible:
 			        !keyboardLayout.controlMode
 			        && (futoHandler.voiceRecording || futoHandler.voiceBusy
@@ -2707,7 +2722,8 @@ InputHandler {
 					futoHandler.credentialDebug("ui-visible=" + passwordVaultVisible
 					                            + " strip=" + stripRequired)
 			}
-            readonly property bool predictionContentAvailable: !cursorStatusVisible
+            readonly property bool predictionContentAvailable: !layoutEditorVisible
+			        && !cursorStatusVisible
 			        && !modifierStatusVisible
                     && !futoHandler.passwordField
                     && (futoHandler.showUrlSuggestions
@@ -2719,7 +2735,8 @@ InputHandler {
                        && futoHandler.predictionSuggestionsAvailable)))
 			readonly property bool credentialChooserVisible: keyboardLayout.credentialMode
 			readonly property bool stripRequired: !credentialChooserVisible
-			        && (cursorStatusVisible || modifierStatusVisible
+			        && (layoutEditorVisible
+			        || cursorStatusVisible || modifierStatusVisible
 			        || emojiTabsVisible || emojiSearchVisible
 			        || symbolTabsVisible
 			        || controlsVisible || voiceStatusVisible || credentialSaveVisible
@@ -2737,7 +2754,8 @@ InputHandler {
                 anchors.fill: parent
                 orientation: ListView.Horizontal
                 clip: true
-                visible: !topStrip.emojiTabsVisible
+                visible: !topStrip.layoutEditorVisible
+                         && !topStrip.emojiTabsVisible
                          && !topStrip.cursorStatusVisible
 					 && !topStrip.modifierStatusVisible
                          && !topStrip.emojiSearchVisible
@@ -2776,7 +2794,8 @@ InputHandler {
             FutoHorizontalPredictionListView {
                 id: predictionList
                 anchors.fill: parent
-                visible: !topStrip.emojiTabsVisible
+                visible: !topStrip.layoutEditorVisible
+                         && !topStrip.emojiTabsVisible
                          && !topStrip.cursorStatusVisible
 					 && !topStrip.modifierStatusVisible
                          && !topStrip.emojiSearchVisible
@@ -2805,8 +2824,9 @@ InputHandler {
 				width: visible ? height : 0
 				handler: futoHandler
 				z: 20
-				visible: topStrip.passwordClipboardPasteVisible
-				         || topStrip.clipboardOnlyPasteVisible
+				visible: !topStrip.layoutEditorVisible
+				         && (topStrip.passwordClipboardPasteVisible
+				         || topStrip.clipboardOnlyPasteVisible)
 				onPasteRequested: {
 					futoHandler.paste(Clipboard.text)
 					keyboard.expandedPaste = false
@@ -2818,6 +2838,7 @@ InputHandler {
                 anchors.leftMargin: Theme.horizontalPageMargin
                 anchors.rightMargin: Theme.horizontalPageMargin
                 visible: topStrip.stripRequired
+                         && !topStrip.layoutEditorVisible
                          && !topStrip.cursorStatusVisible
 					 && !topStrip.modifierStatusVisible
                          && !topStrip.emojiTabsVisible
@@ -2990,6 +3011,7 @@ InputHandler {
                 anchors.fill: parent
                 z: 2
                 visible: topStrip.stripRequired
+                         && !topStrip.layoutEditorVisible
                          && !topStrip.cursorStatusVisible
 					 && !topStrip.modifierStatusVisible
                          && !topStrip.emojiTabsVisible
@@ -3008,7 +3030,8 @@ InputHandler {
 				anchors.leftMargin: topStrip.passwordClipboardPasteVisible
 				        ? passwordClipboardPasteButton.width : 0
 				z: 4
-				visible: topStrip.passwordVaultVisible
+				visible: !topStrip.layoutEditorVisible
+				         && topStrip.passwordVaultVisible
 				onClicked: futoHandler.openPasswordVault()
 
 				Row {
@@ -4119,6 +4142,8 @@ InputHandler {
 			futoHandler.refreshApplicationSuggestions()
         }
         onCursorPositionChanged: {
+			if (futoHandler.preeditAlreadyCommitted)
+				committedPreeditReconcileTimer.restart()
             if (futoHandler.committedSpaceArmed
                     && futoHandler.committedSpaceExpectedCursor >= 0
                     && MInputMethodQuick.surroundingTextValid
@@ -4140,6 +4165,8 @@ InputHandler {
             }
         }
         onEditorStateUpdate: {
+			if (futoHandler.preeditAlreadyCommitted)
+				committedPreeditReconcileTimer.restart()
             if (futoHandler.trackSurroundings && futoHandler.active
                     && futoHandler.preedit === "") {
 				futoHandler.syncEditorTypedBuffer()
@@ -4167,6 +4194,33 @@ InputHandler {
 				futoHandler.refreshCredentialMatch()
         }
     }
+
+	Timer {
+		id: committedPreeditReconcileTimer
+		interval: 80
+		repeat: false
+		onTriggered: {
+			if (!futoHandler.preeditAlreadyCommitted
+					|| !MInputMethodQuick.surroundingTextValid)
+				return
+			var surrounding = String(MInputMethodQuick.surroundingText)
+			var cursor = Math.max(0, Math.min(MInputMethodQuick.cursorPosition,
+			                                  surrounding.length))
+			var word = String(futoHandler.preedit)
+			var start = cursor - word.length
+			if (start >= 0 && surrounding.substring(start, cursor) === word)
+				return
+
+			// The host cleared or replaced the field itself, for example after
+			// its Send button was tapped. The word was already committed, so only
+			// discard our private prediction state; never insert it again.
+			futoHandler.preedit = ""
+			futoHandler.preeditAlreadyCommitted = false
+			futoHandler.resetSuggestionDisplay()
+			futoHandler.syncEditorTypedBuffer()
+			futoHandler.requestSuggestionsSoon()
+		}
+	}
 
     Connections {
         target: keyboard.layout
@@ -4506,8 +4560,15 @@ InputHandler {
         var correctionLevel = isFinite(configuredCorrectionLevel)
                 ? Math.max(0, Math.min(2, Math.round(configuredCorrectionLevel))) : 0
         var context = contextBeforeCursor()
-        if (committedQuery && MInputMethodQuick.surroundingTextValid)
+        if (preeditAlreadyCommitted && MInputMethodQuick.surroundingTextValid) {
+			var committedCursor = Math.max(0, Math.min(
+			            MInputMethodQuick.cursorPosition,
+			            MInputMethodQuick.surroundingText.length))
+			context = MInputMethodQuick.surroundingText.substring(
+			            0, Math.max(0, committedCursor - preedit.length))
+		} else if (committedQuery && MInputMethodQuick.surroundingTextValid) {
             context = MInputMethodQuick.surroundingText.substring(0, queryStart)
+		}
         var dispatched = helper.typedCall("AnalyzeContext", [
             { "type": "s", "value": enabledLanguages() },
             { "type": "s", "value": String(query) },
@@ -4576,7 +4637,14 @@ InputHandler {
     }
 
     function learn(word) {
-        learnWithPrevious(lastWord(contextBeforeCursor()), word)
+		var context = contextBeforeCursor()
+		if (preeditAlreadyCommitted && MInputMethodQuick.surroundingTextValid) {
+			var cursor = Math.max(0, Math.min(MInputMethodQuick.cursorPosition,
+			                                  MInputMethodQuick.surroundingText.length))
+			context = MInputMethodQuick.surroundingText.substring(
+			            0, Math.max(0, cursor - preedit.length))
+		}
+		learnWithPrevious(lastWord(context), word)
     }
 
 	function learnSwipeCorrection(source, replacement, language) {
@@ -4833,6 +4901,7 @@ InputHandler {
 					|| pressedKey.key === Qt.Key_Enter
 					|| String(pressedKey.text || "").length > 0)) {
 			preedit = ""
+			preeditAlreadyCommitted = false
 			clearEditingWord()
 			helper.typedCall("InjectAndroidKey", [
 				{ "type": "i", "value": pressedKey.key },
@@ -4914,8 +4983,13 @@ InputHandler {
                    && undoLastCorrection()) {
             handled = true
         } else if (pressedKey.key === Qt.Key_Backspace && preedit !== "") {
-            preedit = preedit.substr(0, preedit.length - 1)
-            sendLogicalPreedit(preedit)
+			if (preeditAlreadyCommitted)
+				MInputMethodQuick.sendKey(Qt.Key_Backspace, 0, "\b", Maliit.KeyClick)
+			preedit = preedit.substr(0, preedit.length - 1)
+			if (!preeditAlreadyCommitted)
+				sendLogicalPreedit(preedit)
+			else if (preedit === "")
+				preeditAlreadyCommitted = false
             requestSuggestionsSoon()
             if (keyboard.shiftState !== ShiftState.LockedShift) {
                 keyboard.shiftState = preedit.length === 0
@@ -4942,9 +5016,10 @@ InputHandler {
                     editorContextTimer.restart()
                 } else {
                     preedit += pressedKey.text
+					preeditAlreadyCommitted = true
                     if (keyboard.shiftState !== ShiftState.LockedShift)
                         keyboard.shiftState = ShiftState.NoShift
-                    sendLogicalPreedit(preedit)
+					MInputMethodQuick.sendCommit(pressedKey.text)
                     requestSuggestionsSoon()
                 }
                 handled = true
@@ -4971,9 +5046,11 @@ InputHandler {
                     MInputMethodQuick.sendCommit(pressedKey.text + trailingSpace)
                     clearCommittedSpace()
                 }
+				preeditAlreadyCommitted = false
                 handled = true
             }
         } else if (pressedKey.key === Qt.Key_Backspace
+				   && keyboardSettings.predictionEnabled
                    && MInputMethodQuick.surroundingTextValid
                    && !MInputMethodQuick.hasSelection
                    && MInputMethodQuick.cursorPosition >= 2
@@ -5582,7 +5659,8 @@ InputHandler {
             editorContextTimer.restart()
         } else {
             preedit += text
-            sendLogicalPreedit(preedit)
+			preeditAlreadyCommitted = true
+			MInputMethodQuick.sendCommit(text)
             requestSuggestionsSoon()
         }
     }
@@ -5773,8 +5851,13 @@ InputHandler {
         requestSerial++
         nextWordMode = false
         if (preedit !== "") {
+			var wasAlreadyCommitted = preeditAlreadyCommitted
+			if (wasAlreadyCommitted)
+				MInputMethodQuick.sendCommit("", -preedit.length, preedit.length)
             preedit = ""
-            sendLogicalPreedit("")
+			preeditAlreadyCommitted = false
+			if (!wasAlreadyCommitted)
+				sendLogicalPreedit("")
             predictionModel.clear()
             suggestionsUpdated()
             return
@@ -5812,6 +5895,7 @@ InputHandler {
         learnedUrlSuggestions = []
 		refreshApplicationSuggestions()
         preedit = ""
+		preeditAlreadyCommitted = false
         nextWordMode = false
         nextContextOverride = ""
         correctionQuery = ""
@@ -5825,8 +5909,16 @@ InputHandler {
         requestSerial++
         predictionTimer.stop()
         nextPredictionTimer.stop()
-        MInputMethodQuick.sendCommit(text)
+        if (preeditAlreadyCommitted && preedit !== "") {
+			// The exact word is already in the application. Only touch the
+			// document when accepting a correction or appending a separator.
+			if (String(text) !== preedit)
+				MInputMethodQuick.sendCommit(text, -preedit.length, preedit.length)
+		} else {
+			MInputMethodQuick.sendCommit(text)
+		}
         preedit = ""
+		preeditAlreadyCommitted = false
         nextWordMode = false
         nextContextOverride = ""
         correctionQuery = ""

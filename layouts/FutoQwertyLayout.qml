@@ -1375,10 +1375,27 @@ FutoKeyboardLayout {
         targetLayout: root
     }
 
-    FutoLayoutEditor {
+    // Keep the overall input-method height unchanged while the selector uses
+    // the otherwise empty prediction-strip area.  Growing this direct child
+    // changes only its painted size after Maliit has measured the layout and
+    // makes it overflow into the application above the keyboard.
+    Item {
+        id: layoutEditorContainer
         visible: root.layoutEditorMode
-        targetLayout: root
-		height: root.keyboardPanelHeight
+        height: root.keyboardPanelHeight
+        z: 100
+
+        readonly property real reclaimedTopHeight:
+                root.useTopItem ? Theme.itemSizeSmall : 0
+
+        FutoLayoutEditor {
+            x: 0
+            y: -layoutEditorContainer.reclaimedTopHeight
+            width: layoutEditorContainer.width
+            height: layoutEditorContainer.height
+                    + layoutEditorContainer.reclaimedTopHeight
+            targetLayout: root
+        }
     }
 
     FutoClipboardPanel {

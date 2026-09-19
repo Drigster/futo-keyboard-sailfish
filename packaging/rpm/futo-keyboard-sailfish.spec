@@ -4,7 +4,7 @@
 %global _missing_build_ids_terminate_build 0
 
 Name:           futo-keyboard-sailfish
-Version:        0.6.0
+Version:        0.6.1
 Release:        1
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
 License:        LicenseRef-FUTO-Source-First-1.1-kb AND GPL-3.0-only AND BSD-3-Clause AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND LGPL-2.1-or-later AND (LGPL-2.1-only OR LGPL-3.0-only)
@@ -196,6 +196,12 @@ fi
 %{_userunitdir}/maliit-server.service.d/10-futo-hardware-policy.conf
 
 %changelog
+* Sun Sep 20 2026 HtheB - 0.6.1-1
+- Restore the full available height of the layout selector.
+- Commit typed text immediately so applications can react before Space is
+  pressed and preserve the final word when sending.
+- Avoid composing underlines when word suggestions are disabled.
+
 * Tue Sep 15 2026 HtheB - 0.6.0-1
 - Add six selectable offline FUTO voice models in English and multilingual
   variants, with choices prioritizing speed or accuracy.

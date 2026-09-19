@@ -88,7 +88,10 @@ Item {
         anchors.top: header.bottom
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.bottom: layoutScrubber.top
+        // The scrollbar is overlaid at the top of the language tabs below.
+        // Giving it a separate row made every layout preview noticeably
+        // shorter, especially with a reduced keyboard-height setting.
+        anchors.bottom: languageTabs.top
         orientation: ListView.Horizontal
         spacing: Theme.paddingMedium
         clip: true
@@ -217,7 +220,8 @@ Item {
         id: layoutScrubber
         anchors.left: parent.left
         anchors.right: parent.right
-        anchors.bottom: languageTabs.top
+        anchors.top: languageTabs.top
+        z: 20
         visible: editor.layoutChoices.length > 1
         height: visible ? Math.max(Theme.paddingLarge * 2,
                                    Theme.itemSizeSmall * 0.45) : 0

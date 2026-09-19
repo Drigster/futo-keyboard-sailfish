@@ -400,6 +400,12 @@ grep -Fq 'character === "\u200c"' "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'return rightToLeftPreedit && text !== "" ? "\u200f" + text : text' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'sendLogicalPreedit(preedit)' "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'property bool preeditAlreadyCommitted: false' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'if (String(text) !== preedit)' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'MInputMethodQuick.sendCommit(pressedKey.text)' \
+    "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq '"caption": "\u202a\u00a0\u064c\u202c", "output": "\u064c"' \
     "$ROOT/layouts/FutoPersianJoinerKey.qml"
 grep -Fq '{ "caption": "\u202a\u00a0\u0652\u202c", "output": "\u0652" }' \
@@ -745,6 +751,8 @@ grep -Fq 'onPressAndHold:' \
 grep -Fq 'onTriggered: root.hideControlStrip()' \
     "$ROOT/layouts/FutoQwertyLayout.qml"
 grep -Fq 'readonly property bool immediateCommitField: !urlField' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq '&& (!keyboardSettings.predictionEnabled' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'function terminalInputApplication()' \
     "$ROOT/qml/FutoInputHandler.qml"
