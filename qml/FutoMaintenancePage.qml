@@ -88,8 +88,8 @@ Page {
                 height: Math.max(Theme.itemSizeLarge,
                                  uninstallLabels.height + 2 * Theme.paddingMedium)
 
-                // The dialog replaces itself with the progress page when it
-                // is accepted, so there is nothing to arrange here.
+                // The warning page requires an explicit button press before
+                // it replaces itself with the removal progress page.
                 onClicked: pageStack.push(
                                Qt.resolvedUrl("FutoUninstallDialog.qml"))
 

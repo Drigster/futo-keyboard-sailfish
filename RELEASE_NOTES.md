@@ -1,12 +1,13 @@
-# FUTO Keyboard for Sailfish OS 0.6.1
+# FUTO Keyboard for Sailfish OS 0.6.2
 
 ## Fixes
 
-- The layout selector now uses the full available keyboard area instead of
-  appearing compressed.
-- Applications now recognize typed text immediately, without waiting for Space
-  to be pressed.
-- The final word is no longer lost when sending a message without a trailing
-  space.
-- Typed text is no longer shown as unfinished or underlined when word
-  suggestions are disabled.
+- Automatic first-letter capitalization and one-tap Shift work correctly
+  again.
+- Uninstalling restores Sailfish's original Arabic font rendering immediately,
+  without requiring a reboot.
+- Uninstalling now requires an explicit button press and a cancellable
+  countdown, with a clear warning before the home screen restarts and running
+  applications close.
+- Sailfish switches to an installed stock keyboard after FUTO is removed, even
+  if its settings contain old or missing keyboard entries.

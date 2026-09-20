@@ -4,7 +4,7 @@
 %global _missing_build_ids_terminate_build 0
 
 Name:           futo-keyboard-sailfish
-Version:        0.6.1
+Version:        0.6.2
 Release:        1
 Summary:        FUTO-derived local keyboard and predictions for Sailfish OS
 License:        LicenseRef-FUTO-Source-First-1.1-kb AND GPL-3.0-only AND BSD-3-Clause AND CC-BY-4.0 AND CC-BY-SA-4.0 AND Apache-2.0 AND Unicode-3.0 AND MIT AND OFL-1.1 AND LGPL-2.1-or-later AND (LGPL-2.1-only OR LGPL-3.0-only)
@@ -87,6 +87,15 @@ fi
 /usr/bin/systemctl-user daemon-reload >/dev/null 2>&1 || :
 /usr/bin/systemctl-user reload dbus.service >/dev/null 2>&1 || :
 /usr/bin/systemctl-user try-restart maliit-server.service >/dev/null 2>&1 || :
+if [ "$1" -eq 0 ]; then
+    # FUTO installs a modified Amiri face under the same family name as the
+    # Sailfish font. Fontconfig's disk cache is already rebuilt above, but
+    # running Qt processes retain their old font database and may keep trying
+    # to render through the removed face. Reload the compositor and its native
+    # clients after a real erase so the stock font is selected immediately.
+    # Do not do this during an upgrade, where the replacement font remains.
+    /usr/bin/systemctl-user restart lipstick.service >/dev/null 2>&1 || :
+fi
 
 %files
 %defattr(0644,root,root,0755)
@@ -196,6 +205,15 @@ fi
 %{_userunitdir}/maliit-server.service.d/10-futo-hardware-policy.conf
 
 %changelog
+* Sun Sep 20 2026 HtheB - 0.6.2-1
+- Restore automatic first-letter capitalization and one-tap Shift.
+- Restore the original Sailfish Arabic font immediately after uninstalling,
+  without requiring a device reboot.
+- Require an explicit Uninstall button and a cancellable remorse countdown
+  before removal begins, with a clear warning about restarting the home screen.
+- Ignore missing saved layouts and switch to an installed Sailfish keyboard
+  after FUTO Keyboard is removed.
+
 * Sun Sep 20 2026 HtheB - 0.6.1-1
 - Restore the full available height of the layout selector.
 - Commit typed text immediately so applications can react before Space is

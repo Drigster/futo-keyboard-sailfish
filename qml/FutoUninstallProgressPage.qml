@@ -116,7 +116,10 @@ Page {
                         return page.message !== ""
                                 ? page.message
                                 : qsTr("Nothing was changed on this device.")
-                    return qsTr("This takes a moment. Please keep this page open.")
+                    return qsTr("The home screen will restart during removal. "
+                                + "The display may briefly go dark before "
+                                + "returning. This is expected; please wait "
+                                + "for the process to finish.")
                 }
             }
 

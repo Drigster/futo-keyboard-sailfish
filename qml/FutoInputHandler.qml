@@ -5015,11 +5015,15 @@ InputHandler {
                     clearEditingWord()
                     editorContextTimer.restart()
                 } else {
-                    preedit += pressedKey.text
+					// CharacterKey.text follows the live Shift state. Capture it
+					// before consuming one-shot Shift; reading it again afterwards
+					// turns an AutoShift/LatchedShift character back to lowercase.
+					var inputCharacter = String(pressedKey.text)
+					preedit += inputCharacter
 					preeditAlreadyCommitted = true
                     if (keyboard.shiftState !== ShiftState.LockedShift)
                         keyboard.shiftState = ShiftState.NoShift
-					MInputMethodQuick.sendCommit(pressedKey.text)
+					MInputMethodQuick.sendCommit(inputCharacter)
                     requestSuggestionsSoon()
                 }
                 handled = true

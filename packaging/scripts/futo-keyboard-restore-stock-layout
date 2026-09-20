@@ -18,6 +18,7 @@ FUTO_LAYOUT=futo.qml
 LAYOUT_DIR=/usr/share/maliit/plugins/com/jolla/layouts
 ENABLED_KEY=/sailfish/text_input/enabled_layouts
 ACTIVE_KEY=/sailfish/text_input/active_layout
+PREVIOUS_KEY=/sailfish/text_input/previous_layout
 
 session_user=$(loginctl list-sessions 2>/dev/null |
     grep seat0 | tr -s ' ' | cut -d ' ' -f 4 | head -1)
@@ -50,32 +51,69 @@ enabled=$(list_enabled)
 # Nothing of ours was selected, so the choice is not ours to change.
 printf '%s\n' "$enabled" | grep -q "^$FUTO_LAYOUT\$" || exit 0
 
-remaining=$(printf '%s\n' "$enabled" | grep -v "^$FUTO_LAYOUT\$")
-
-if [ -z "$remaining" ]; then
-    # This was the only keyboard. Prefer the layout for the language the
-    # device is set to, then English, then whatever single-language layout
-    # the system still has, so the list is never left empty.
-    locale_layout=$(as_user 'dconf read /desktop/sailfish/i18n/language' |
-        tr -d "'\"" | cut -d_ -f1)
-    for candidate in "$locale_layout.qml" en.qml \
-            $(ls "$LAYOUT_DIR" 2>/dev/null | grep '^[a-z][a-z]\.qml$'); do
-        if [ -f "$LAYOUT_DIR/$candidate" ]; then
-            remaining=$candidate
-            break
+# Keep only layouts that still exist. Users can retain stale layout names after
+# removing another keyboard package; selecting one of those here creates the
+# same empty keyboard that this script is intended to prevent.
+remaining=
+for layout in $enabled; do
+    if [ "$layout" != "$FUTO_LAYOUT" ] && [ -f "$LAYOUT_DIR/$layout" ]; then
+        if [ -z "$remaining" ]; then
+            remaining=$layout
+        else
+            remaining="$remaining
+$layout"
         fi
-    done
+    fi
+done
+
+# Prefer a stock layout matching the device locale. Older Sailfish releases do
+# not always expose the UI language in dconf, so /etc/locale.conf is the second
+# source. English and then any installed two-letter stock layout are safe final
+# fallbacks.
+locale_layout=$(as_user 'dconf read /desktop/sailfish/i18n/language' |
+    tr -d "'\"" | cut -d_ -f1)
+if [ -z "$locale_layout" ] && [ -r /etc/locale.conf ]; then
+    locale_layout=$(sed -n 's/^LANG=//p' /etc/locale.conf |
+        tr -d "'\"" | cut -d_ -f1 | cut -d. -f1 | head -1)
 fi
 
-[ -n "$remaining" ] || exit 0
-
-enabled_value=$(printf '%s\n' $remaining | quote_list)
-as_user "dconf write $ENABLED_KEY '$enabled_value'"
+fallback=
+for candidate in "$locale_layout.qml" en.qml \
+        $(ls "$LAYOUT_DIR" 2>/dev/null | grep '^[a-z][a-z]\.qml$'); do
+    if [ -n "$candidate" ] && [ -f "$LAYOUT_DIR/$candidate" ]; then
+        fallback=$candidate
+        break
+    fi
+done
+[ -n "$fallback" ] || exit 0
 
 active=$(as_user "dconf read $ACTIVE_KEY" | tr -d "'\"")
-if [ -z "$active" ] || [ "$active" = "$FUTO_LAYOUT" ]; then
-    first=$(printf '%s\n' $remaining | head -1)
-    as_user "dconf write $ACTIVE_KEY '\"$first\"'"
+if [ -z "$active" ] || [ "$active" = "$FUTO_LAYOUT" ] \
+        || [ ! -f "$LAYOUT_DIR/$active" ]; then
+    active=$fallback
+fi
+
+# The selected fallback must also be enabled. Prepend it so Sailfish has a
+# usable first choice even when every saved non-FUTO entry was stale.
+if ! printf '%s\n' "$remaining" | grep -Fqx "$active"; then
+    if [ -n "$remaining" ]; then
+        remaining="$active
+$remaining"
+    else
+        remaining=$active
+    fi
+fi
+
+enabled_value=$(printf '%s\n' "$remaining" | quote_list)
+as_user "dconf write $ENABLED_KEY '$enabled_value'"
+as_user "dconf write $ACTIVE_KEY '\"$active\"'"
+
+# Do not leave the language-switch shortcut pointing at a removed or stale
+# layout either.
+previous=$(as_user "dconf read $PREVIOUS_KEY" | tr -d "'\"")
+if [ -z "$previous" ] || [ "$previous" = "$FUTO_LAYOUT" ] \
+        || [ ! -f "$LAYOUT_DIR/$previous" ]; then
+    as_user "dconf write $PREVIOUS_KEY '\"$active\"'"
 fi
 
 exit 0

@@ -55,14 +55,40 @@ if grep -q 'systemctl-user stop futo-keyboard-helper.service' "$ROOT/packaging/r
     echo "the helper must outlive %preun to report the removal" >&2
     exit 1
 fi
-# One navigation only: replacing the stack from an accepted handler runs a
-# second one against the dialog's own and leaves both pages on screen.
-grep -Fq 'acceptDestinationAction: PageStackAction.Replace' \
-    "$ROOT/qml/FutoUninstallDialog.qml"
+# A Silica Dialog can be accepted by a navigation gesture. Destructive removal
+# must start only from the explicit button on a regular Page.
+grep -Fq 'Page {' "$ROOT/qml/FutoUninstallDialog.qml"
+grep -Fq 'text: qsTr("Uninstall")' "$ROOT/qml/FutoUninstallDialog.qml"
+grep -Fq 'onClicked: {' "$ROOT/qml/FutoUninstallDialog.qml"
+grep -Fq 'Remorse.popupAction(' "$ROOT/qml/FutoUninstallDialog.qml"
+grep -Fq 'pageStack.replace(' "$ROOT/qml/FutoUninstallDialog.qml"
+if grep -Fq 'Keep FUTO Keyboard' "$ROOT/qml/FutoUninstallDialog.qml"; then
+    echo "uninstall page must rely on back navigation instead of a keep button" >&2
+    exit 1
+fi
+if grep -Eq '^[[:space:]]*(Dialog[[:space:]]*\{|acceptDestination:)' \
+        "$ROOT/qml/FutoUninstallDialog.qml"; then
+    echo "uninstall confirmation must not be gesture-accepted" >&2
+    exit 1
+fi
+grep -Fq '[ ! -f "$LAYOUT_DIR/$active" ]' \
+    "$ROOT/packaging/scripts/futo-keyboard-restore-stock-layout"
+grep -Fq 'PREVIOUS_KEY=/sailfish/text_input/previous_layout' \
+    "$ROOT/packaging/scripts/futo-keyboard-restore-stock-layout"
+grep -Fq 'The display may briefly go dark before' \
+    "$ROOT/qml/FutoUninstallProgressPage.qml"
 grep -Fq 'FutoUninstallProgressPage.qml' "$ROOT/packaging/Makefile"
 grep -Fq 'icon-m-refresh' "$ROOT/qml/FutoMaintenancePage.qml"
 grep -Fq '49-futo-keyboard-uninstall.rules' "$ROOT/packaging/Makefile"
 node --check < "$ROOT/packaging/polkit/49-futo-keyboard-uninstall.rules"
+# Removing the same-family Amiri replacement must reload Qt's cached font
+# database, but upgrades must not interrupt the UI.
+grep -Fq 'systemctl-user restart lipstick.service' \
+    "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"
+grep -Fq 'if [ "$1" -eq 0 ]; then' \
+    "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec"
+grep -Fq 'and closes running applications' \
+    "$ROOT/qml/FutoUninstallDialog.qml"
 # The About page states the version in its own words. It drifted silently
 # through a release once; make a mismatch with the package a build failure.
 spec_version=$(grep '^Version:' "$ROOT/packaging/rpm/futo-keyboard-sailfish.spec" |
@@ -405,6 +431,12 @@ grep -Fq 'property bool preeditAlreadyCommitted: false' \
 grep -Fq 'if (String(text) !== preedit)' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'MInputMethodQuick.sendCommit(pressedKey.text)' \
+    "$ROOT/qml/FutoInputHandler.qml"
+# CharacterKey.text changes as one-shot Shift is consumed, so the committed
+# character must be captured before shiftState returns to NoShift.
+grep -Fq 'var inputCharacter = String(pressedKey.text)' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'MInputMethodQuick.sendCommit(inputCharacter)' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq '"caption": "\u202a\u00a0\u064c\u202c", "output": "\u064c"' \
     "$ROOT/layouts/FutoPersianJoinerKey.qml"
