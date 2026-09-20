@@ -4966,7 +4966,7 @@ InputHandler {
                     undoOriginalWord = original
                     undoReplacementWord = accepted
                     undoCommittedSuffix = " "
-                    undoRestoredSuffix = ""
+                    undoRestoredSuffix = " "
                     undoCursorPosition = committedWordStart < 0 ? -1
                             : committedWordStart + accepted.length + 1
                     correctedSpaceIndex = undoCursorPosition
@@ -5079,7 +5079,7 @@ InputHandler {
                         undoOriginalWord = originalPunctuationWord
                         undoReplacementWord = acceptedPunctuationWord
                         undoCommittedSuffix = punctuationSuffix
-                        undoRestoredSuffix = pressedKey.text
+                        undoRestoredSuffix = punctuationSuffix
                         undoCursorPosition = punctuationWordStart < 0 ? -1
                                 : punctuationWordStart
                                   + acceptedPunctuationWord.length

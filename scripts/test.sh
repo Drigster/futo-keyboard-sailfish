@@ -751,7 +751,9 @@ grep -Fq 'acceptedPunctuationWord = correctedWordForCommit(preedit)' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'undoCommittedSuffix = punctuationSuffix' \
     "$ROOT/qml/FutoInputHandler.qml"
-grep -Fq 'undoRestoredSuffix = pressedKey.text' \
+grep -Fq 'undoRestoredSuffix = " "' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'undoRestoredSuffix = punctuationSuffix' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'MInputMethodQuick.sendCommit(restored, -committed.length, committed.length)' \
     "$ROOT/qml/FutoInputHandler.qml"
