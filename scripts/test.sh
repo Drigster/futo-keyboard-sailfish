@@ -136,6 +136,7 @@ grep -Fq 'RIAL_CODEPOINT = 0xFDFC' "$ROOT/scripts/build-amiri-riyal-font.py"
 grep -Fq '65-futo-keyboard-symbols.conf' "$ROOT/packaging/Makefile"
 node "$ROOT/scripts/check-generated-layouts.js"
 node "$ROOT/scripts/check-punctuation-spacing.js"
+node "$ROOT/scripts/check-committed-word-transitions.js"
 node "$ROOT/scripts/check-symbol-popups.js"
 node "$ROOT/scripts/check-qwerty-alternates.js"
 node - "$ROOT/layouts/FutoLetterLayouts.js" <<'NODE'
@@ -425,7 +426,9 @@ grep -Fq 'insertWordCharacter("\u200c")' "$ROOT/layouts/FutoShiftKey.qml"
 grep -Fq 'character === "\u200c"' "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'return rightToLeftPreedit && text !== "" ? "\u200f" + text : text' \
     "$ROOT/qml/FutoInputHandler.qml"
-grep -Fq 'sendLogicalPreedit(preedit)' "$ROOT/qml/FutoInputHandler.qml"
+! grep -Fq 'sendLogicalPreedit(word, undefined' "$ROOT/qml/FutoInputHandler.qml"
+! grep -Fq 'sendLogicalPreedit(original, undefined' "$ROOT/qml/FutoInputHandler.qml"
+! grep -Fq 'sendLogicalPreedit(preedit)' "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'property bool preeditAlreadyCommitted: false' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'if (String(text) !== preedit)' \
@@ -745,6 +748,16 @@ grep -Fq 'text: qsTr("Correct typos when pressing punctuation")' \
 grep -Fq '&& !punctuationInsideAddress(punctuationText)' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq 'acceptedPunctuationWord = correctedWordForCommit(preedit)' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'undoCommittedSuffix = punctuationSuffix' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'undoRestoredSuffix = pressedKey.text' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'MInputMethodQuick.sendCommit(restored, -committed.length, committed.length)' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'var committedWordStart = MInputMethodQuick.surroundingTextValid' \
+    "$ROOT/qml/FutoInputHandler.qml"
+grep -Fq 'scheduleNextWords(accepted, contextBeforeCommittedWord)' \
     "$ROOT/qml/FutoInputHandler.qml"
 grep -Fq '&& ",.?!:;،؟؛".indexOf(punctuationText) >= 0' \
     "$ROOT/qml/FutoInputHandler.qml"

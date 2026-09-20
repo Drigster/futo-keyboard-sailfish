@@ -35,6 +35,8 @@ InputHandler {
     property bool undoCorrectionAvailable: false
     property string undoOriginalWord: ""
     property string undoReplacementWord: ""
+    property string undoCommittedSuffix: ""
+    property string undoRestoredSuffix: ""
     property int undoCursorPosition: -1
     property bool privacySwitchActive: false
     property bool hardwareKeyboardAvailable: false
@@ -171,11 +173,10 @@ InputHandler {
 	             && keyboard.layout.usesArabicDigits)
 	            || (keyboard.layout.usesPersianDigits !== undefined
 	                && keyboard.layout.usesPersianDigits))
-	// Some terminal and console editors do not render Maliit's preedit text.
-	// Commit each character immediately when the editor explicitly disables
-	// prediction, or when its application identity identifies a terminal. URL
-	// fields stay on the existing preedit path so swipe/search and URL-history
-	// suggestions continue to work.
+	// Some terminal and console editors need a reduced input path. Ordinary
+	// fields, including URL fields, still keep a private current-word buffer for
+	// predictions, swipe/search and URL history, but their characters are already
+	// committed to the application.
 	readonly property bool immediateCommitField: !urlField
 	        && (!keyboardSettings.predictionEnabled
 	            || !MInputMethodQuick.predictionEnabled
@@ -4474,6 +4475,14 @@ InputHandler {
         return MInputMethodQuick.surroundingText.substring(0, position)
     }
 
+    function wordStartBeforeReplacement(cursor, wordLength, alreadyCommitted) {
+        cursor = Number(cursor)
+        wordLength = Math.max(0, Number(wordLength))
+        if (!isFinite(cursor) || cursor < 0 || !isFinite(wordLength))
+            return -1
+        return Math.max(0, cursor - (alreadyCommitted ? wordLength : 0))
+    }
+
     function lastWord(text) {
         text = String(text)
         var end = text.length
@@ -4485,12 +4494,13 @@ InputHandler {
         return text.substring(start, end)
     }
 
-    function scheduleNextWords(committedWord) {
+    function scheduleNextWords(committedWord, contextBeforeWord) {
         if (!active || !activePredictionsAvailable || !keyboardSettings.predictionEnabled
                 || !keyboardSettings.nextWordPredictionEnabled) {
             return
         }
-        var context = contextBeforeCursor()
+        var context = contextBeforeWord === undefined
+                ? contextBeforeCursor() : String(contextBeforeWord)
         if (committedWord !== "")
             context += (context.length > 0 ? " " : "") + committedWord
         nextContextOverride = context
@@ -4756,26 +4766,33 @@ InputHandler {
 				learnSwipeCorrection(originalSwipeWord, replacement,
 				                   correctionLanguage)
 				learnWithPrevious(previousSwipeWord, replacement)
-				scheduleNextWords(replacement)
+				var editingContext = MInputMethodQuick.surroundingTextValid
+				        ? MInputMethodQuick.surroundingText.substring(0, start) : ""
+				scheduleNextWords(replacement, editingContext)
 			}
             return
         }
         var addSpace = keyboardSettings.autoSpaceAfterSuggestion
                 && !wordOpensAddress(replacement)
-        candidateSpaceIndex = addSpace && MInputMethodQuick.surroundingTextValid
-                ? MInputMethodQuick.cursorPosition + replacement.length + 1 : -1
         var cursorBeforeSuggestion = MInputMethodQuick.surroundingTextValid
                 ? MInputMethodQuick.cursorPosition : -1
+        var suggestionStart = wordStartBeforeReplacement(
+                    cursorBeforeSuggestion, preedit.length,
+                    preeditAlreadyCommitted)
+        var suggestionContext = suggestionStart < 0 ? ""
+                : MInputMethodQuick.surroundingText.substring(0, suggestionStart)
+        candidateSpaceIndex = addSpace && suggestionStart >= 0
+                ? suggestionStart + replacement.length + 1 : -1
         learn(replacement)
         commit(replacement + (addSpace ? " " : ""))
         if (addSpace)
-            armCommittedSpace(cursorBeforeSuggestion < 0 ? -1
-                              : cursorBeforeSuggestion + replacement.length + 1)
+            armCommittedSpace(suggestionStart < 0 ? -1
+                              : suggestionStart + replacement.length + 1)
         if (keyboard.shiftState !== ShiftState.LockedShift) {
             keyboard.shiftState = addSpace ? ShiftState.AutoShift : ShiftState.NoShift
         }
         if (addSpace)
-            scheduleNextWords(replacement)
+            scheduleNextWords(replacement, suggestionContext)
     }
 
 	// The platform plays its press effect for every key a finger crosses, out
@@ -4932,17 +4949,26 @@ InputHandler {
                 var corrected = accepted !== original
 
                 var cursorBeforeCommit = MInputMethodQuick.cursorPosition
+                var committedWordStart = MInputMethodQuick.surroundingTextValid
+                        ? wordStartBeforeReplacement(cursorBeforeCommit,
+                                                     original.length,
+                                                     preeditAlreadyCommitted) : -1
+                var contextBeforeCommittedWord = committedWordStart < 0 ? ""
+                        : MInputMethodQuick.surroundingText.substring(
+                              0, committedWordStart)
                 learn(accepted)
                 commit(accepted + " ")
-                armCommittedSpace(MInputMethodQuick.surroundingTextValid
-                                  ? cursorBeforeCommit + accepted.length + 1 : -1)
-                scheduleNextWords(accepted)
-                if (corrected && keyboardSettings.undoCorrectionEnabled
-                        && MInputMethodQuick.surroundingTextValid) {
+                armCommittedSpace(committedWordStart < 0 ? -1
+                                  : committedWordStart + accepted.length + 1)
+                scheduleNextWords(accepted, contextBeforeCommittedWord)
+                if (corrected && keyboardSettings.undoCorrectionEnabled) {
                     undoCorrectionAvailable = true
                     undoOriginalWord = original
                     undoReplacementWord = accepted
-                    undoCursorPosition = cursorBeforeCommit + accepted.length + 1
+                    undoCommittedSuffix = " "
+                    undoRestoredSuffix = ""
+                    undoCursorPosition = committedWordStart < 0 ? -1
+                            : committedWordStart + accepted.length + 1
                     correctedSpaceIndex = undoCursorPosition
                 }
                 keyboard.autocaps = false
@@ -4983,12 +5009,9 @@ InputHandler {
                    && undoLastCorrection()) {
             handled = true
         } else if (pressedKey.key === Qt.Key_Backspace && preedit !== "") {
-			if (preeditAlreadyCommitted)
-				MInputMethodQuick.sendKey(Qt.Key_Backspace, 0, "\b", Maliit.KeyClick)
+			MInputMethodQuick.sendKey(Qt.Key_Backspace, 0, "\b", Maliit.KeyClick)
 			preedit = preedit.substr(0, preedit.length - 1)
-			if (!preeditAlreadyCommitted)
-				sendLogicalPreedit(preedit)
-			else if (preedit === "")
+			if (preedit === "")
 				preeditAlreadyCommitted = false
             requestSuggestionsSoon()
             if (keyboard.shiftState !== ShiftState.LockedShift) {
@@ -5032,14 +5055,36 @@ InputHandler {
                         && spaceAfterPunctuationAllowed(punctuationText)
                         ? " " : ""
                 if (preedit !== "") {
+                    var originalPunctuationWord = preedit
                     var acceptedPunctuationWord = preedit
                     if (punctuationKey && keyboardSettings.predictionEnabled
                             && keyboardSettings.punctuationCorrectionEnabled
                             && smartPunctuationField()
                             && !punctuationInsideAddress(punctuationText))
                         acceptedPunctuationWord = correctedWordForCommit(preedit)
+                    var punctuationCorrected = acceptedPunctuationWord
+                            !== originalPunctuationWord
+                    var cursorBeforePunctuation = MInputMethodQuick.surroundingTextValid
+                            ? MInputMethodQuick.cursorPosition : -1
+                    var punctuationWordStart = wordStartBeforeReplacement(
+                                cursorBeforePunctuation,
+                                originalPunctuationWord.length,
+                                preeditAlreadyCommitted)
+                    var punctuationSuffix = pressedKey.text + trailingSpace
                     learn(acceptedPunctuationWord)
-                    commit(acceptedPunctuationWord + pressedKey.text + trailingSpace)
+                    commit(acceptedPunctuationWord + punctuationSuffix)
+                    if (punctuationCorrected
+                            && keyboardSettings.undoCorrectionEnabled) {
+                        undoCorrectionAvailable = true
+                        undoOriginalWord = originalPunctuationWord
+                        undoReplacementWord = acceptedPunctuationWord
+                        undoCommittedSuffix = punctuationSuffix
+                        undoRestoredSuffix = pressedKey.text
+                        undoCursorPosition = punctuationWordStart < 0 ? -1
+                                : punctuationWordStart
+                                  + acceptedPunctuationWord.length
+                                  + punctuationSuffix.length
+                    }
                 } else if (keyboardSettings.smartPunctuationEnabled
                            && punctuationKey && smartPunctuationField()
                            && spaceImmediatelyBeforeCursor()) {
@@ -5071,8 +5116,8 @@ InputHandler {
             position++
             var word = MInputMethodQuick.surroundingText.substring(position, position + length)
             MInputMethodQuick.sendKey(Qt.Key_Backspace, 0, "\b", Maliit.KeyClick)
-            sendLogicalPreedit(word, undefined, -length, length)
             preedit = word
+            preeditAlreadyCommitted = true
             requestSuggestionsSoon()
             handled = true
         }
@@ -5578,6 +5623,8 @@ InputHandler {
         undoCorrectionAvailable = false
         undoOriginalWord = ""
         undoReplacementWord = ""
+        undoCommittedSuffix = ""
+        undoRestoredSuffix = ""
         undoCursorPosition = -1
     }
 
@@ -5585,12 +5632,13 @@ InputHandler {
         if (!undoCorrectionAvailable
                 || !MInputMethodQuick.surroundingTextValid
                 || MInputMethodQuick.hasSelection
-                || MInputMethodQuick.cursorPosition !== undoCursorPosition) {
+                || (undoCursorPosition >= 0
+                    && MInputMethodQuick.cursorPosition !== undoCursorPosition)) {
             clearUndoCorrection()
             return false
         }
 
-        var committed = undoReplacementWord + " "
+        var committed = undoReplacementWord + undoCommittedSuffix
         var start = MInputMethodQuick.cursorPosition - committed.length
         if (start < 0 || MInputMethodQuick.surroundingText.substring(
                     start, MInputMethodQuick.cursorPosition) !== committed) {
@@ -5599,12 +5647,16 @@ InputHandler {
         }
 
         var original = undoOriginalWord
-        var replacementLength = undoReplacementWord.length
-        MInputMethodQuick.sendKey(Qt.Key_Backspace, 0, "\b", Maliit.KeyClick)
-        sendLogicalPreedit(original, undefined, -replacementLength, replacementLength)
-        preedit = original
+        var restoredSuffix = undoRestoredSuffix
+        var restored = original + restoredSuffix
+        MInputMethodQuick.sendCommit(restored, -committed.length, committed.length)
+        preedit = restoredSuffix === "" ? original : ""
+        preeditAlreadyCommitted = preedit !== ""
         clearUndoCorrection()
-        requestSuggestionsSoon()
+        if (preedit !== "")
+            requestSuggestionsSoon()
+        else
+            editorContextTimer.restart()
         if (keyboard.shiftState !== ShiftState.LockedShift)
             keyboard.shiftState = ShiftState.NoShift
         return true
@@ -5855,13 +5907,9 @@ InputHandler {
         requestSerial++
         nextWordMode = false
         if (preedit !== "") {
-			var wasAlreadyCommitted = preeditAlreadyCommitted
-			if (wasAlreadyCommitted)
-				MInputMethodQuick.sendCommit("", -preedit.length, preedit.length)
+			MInputMethodQuick.sendCommit("", -preedit.length, preedit.length)
             preedit = ""
 			preeditAlreadyCommitted = false
-			if (!wasAlreadyCommitted)
-				sendLogicalPreedit("")
             predictionModel.clear()
             suggestionsUpdated()
             return

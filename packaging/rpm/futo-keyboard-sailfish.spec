@@ -207,6 +207,8 @@ fi
 %changelog
 * Sun Sep 20 2026 HtheB - 0.6.2-1
 - Restore automatic first-letter capitalization and one-tap Shift.
+- Restore the original word with Backspace after automatic correction,
+  including corrections accepted with punctuation.
 - Restore the original Sailfish Arabic font immediately after uninstalling,
   without requiring a device reboot.
 - Require an explicit Uninstall button and a cancellable remorse countdown

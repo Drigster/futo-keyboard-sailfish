@@ -151,7 +151,9 @@ Page {
                 width: parent.width
                 automaticCheck: false
                 checked: settings.undoCorrectionEnabled
-                enabled: settings.autoCorrectionEnabled
+                enabled: settings.predictionEnabled
+                         && (settings.autoCorrectionEnabled
+                             || settings.punctuationCorrectionEnabled)
                 text: qsTr("Backspace restores an auto-corrected word")
                 onClicked: settings.undoCorrectionEnabled = !checked
             }
